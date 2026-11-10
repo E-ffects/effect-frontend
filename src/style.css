@@ -1,0 +1,65 @@
+@import 'tailwindcss';
+
+/* E!ffect 브랜드 톤 (RMA_SK_Interactive_v4 기준) */
+@theme {
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --color-background: #f7f8fa;
+  --color-card: #ffffff;
+  --color-border: #e9ebef;
+  --color-input: #dfe2e7;
+  --color-ring: #ea002c;
+  --color-foreground: #20232b;
+  --color-muted: #f3f4f6;
+  --color-muted-foreground: #687080;
+  --color-primary: #ea002c;
+  --color-primary-foreground: #ffffff;
+  /* SK 브랜드 컬러: SK Red PANTONE 186C (#EA002C) · SK Orange PANTONE 158C (#F47725) */
+  --color-sk-red: #ea002c;
+  --color-sk-red-light: #f2a0af;
+  --color-sk-orange: #f47725;
+  --color-sk-orange-soft: #fff3e9;
+  --color-chart-track: #f5f6f8;
+  --color-chart-grid: #f0f1f4;
+  --color-chart-label: #8b919c;
+  --color-brand-soft: #fff1f3;
+  --color-brand-line: #f6c9d2;
+  --color-perf: #fffcfa;
+  --color-perf-line: #f3e5da;
+  --color-accent: #f3f4f6;
+  --color-destructive: #dc2626;
+
+  /* 가독성: 작은 글자 단계를 한 단계씩 키우고 줄 간격을 넉넉하게 */
+  --text-xs: 0.8125rem; /* 13px (기본 12px) */
+  --text-xs--line-height: 1.55;
+  --text-sm: 0.9375rem; /* 15px (기본 14px) */
+  --text-sm--line-height: 1.6;
+  --text-base: 1.0625rem; /* 17px */
+  --text-base--line-height: 1.65;
+  /* medium 500 → 600: 라벨·표 머리·보조 강조가 흐리게 보이지 않게 */
+  --font-weight-medium: 600;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-weight: 500; /* 기본 본문도 Regular(400)보다 한 단계 굵게 */
+    letter-spacing: -0.01em;
+    font-size: 15px;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

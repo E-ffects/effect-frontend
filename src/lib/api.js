@@ -1,3 +1,4 @@
+import { ref } from 'vue'
 import { aiState, auth, clearSession } from './state'
 
 export class ApiError extends Error {
@@ -92,15 +93,12 @@ export function fmtWon(n) {
   return n.toLocaleString() + '원'
 }
 
-export function isoDate(d) {
-  const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-  return z.toISOString().slice(0, 10)
-}
+export const referenceDate = ref('2025-12-31')
 
-export function daysAgo(n, from = new Date()) {
-  const d = new Date(from)
-  d.setDate(d.getDate() - n)
-  return isoDate(d)
+export function daysAgo(n, from = referenceDate.value) {
+  const date = new Date(`${from}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() - n)
+  return date.toISOString().slice(0, 10)
 }
 
 export function timeAgo(ts) {

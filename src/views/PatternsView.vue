@@ -79,7 +79,7 @@ function select(id) {
 </script>
 
 <template>
-  <PageHead :crumb="false" title="불량 패턴 및 주요 원인 분석" description="SSD 반복 불량(같은 패턴 2건 이상)의 주요 원인과 근거 사례를 함께 확인하세요." />
+  <PageHead :crumb="false" title="불량 패턴 및 주요 원인 분석" description="PCB 반복 불량(같은 패턴 2건 이상)의 주요 원인과 근거 사례를 함께 확인하세요." />
 
   <Card class="mb-4" title="주요 원인 분포" :description="`선택 기간과 제품의 주요 원인별 건수${(list?.causes.length || 0) > 12 ? `, 상위 12개 (전체 ${list.causes.length}개)` : ''}${causeTiles.length > 6 ? ', 좌우로 스크롤하면 나머지 원인이 보입니다' : ''}`" :padded="false">
     <div class="px-5 pb-4 pt-1">
@@ -94,7 +94,7 @@ function select(id) {
   <div class="grid grid-cols-3 gap-4">
     <Card class="col-span-2 min-h-[460px]" title="반복 불량 패턴 순위" :description="list ? `행을 누르면 오른쪽 근거가 갱신됩니다 (${list.patterns.length}개 패턴)` : '행을 누르면 오른쪽 근거가 갱신됩니다'" :padded="false">
       <template #actions>
-        <Select v-model="product" size="sm" placeholder="전체 SSD 제품" :options="(meta?.products || []).map((p) => ({ value: p.code, label: `${p.code} ${p.name}` }))" @update:model-value="applyProduct" />
+        <Select v-model="product" size="sm" placeholder="전체 PCB 제품" :options="(meta?.products || []).map((p) => ({ value: p.code, label: `${p.code} ${p.name}` }))" @update:model-value="applyProduct" />
         <DateRange :from="from" :to="to" @apply="apply" />
       </template>
       <div class="px-5 pb-4 pt-3">
@@ -140,7 +140,7 @@ function select(id) {
             <div class="px-2 py-3"><dt class="text-xs text-muted-foreground">심각도</dt><dd class="mt-1.5"><Badge :tone="GRADE_TONE[detail.investigation_grade] || 'outline'" class="text-[13px]">{{ detail.investigation_grade }}</Badge></dd></div>
             <div class="px-2 py-3"><dt class="text-xs text-muted-foreground">우선순위</dt><dd class="mt-1 text-[18px] font-bold tabular">{{ detail.priority_rank }}<small class="ml-0.5 text-xs font-medium text-muted-foreground">위</small></dd></div>
             <div class="px-2 py-3"><dt class="text-xs text-muted-foreground">미해결</dt><dd class="mt-1 text-[18px] font-bold tabular" :class="detail.unresolved ? 'text-sk-orange' : ''">{{ detail.unresolved }}<small class="ml-0.5 text-xs font-medium text-muted-foreground">건</small></dd></div>
-            <div class="px-2 py-3"><dt class="text-xs text-muted-foreground">손실액</dt><dd class="mt-1 text-[18px] font-bold tabular">{{ fmtWon(detail.loss) }}</dd></div>
+            <div class="px-2 py-3"><dt class="text-xs text-muted-foreground">가정 단가 기반 추정 손실</dt><dd class="mt-1 text-[18px] font-bold tabular">{{ fmtWon(detail.loss) }}</dd></div>
           </dl>
 
           <!-- 원인 -->

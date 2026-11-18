@@ -10,9 +10,9 @@ import BrandMark from './BrandMark.vue'
       <div>
         <p class="mb-5 text-[12px] font-semibold tracking-[1.2px] text-muted-foreground">QUALITY, WITH CLARITY.</p>
         <h1 class="text-[44px] font-extrabold leading-[1.3] tracking-[-2px]">
-          SSD, 더 명확한 분석.<br />더 빠른 대응.<br /><span class="text-primary">더 나은 품질.</span>
+          PCB, 더 명확한 분석.<br />더 빠른 대응.<br /><span class="text-primary">더 나은 품질.</span>
         </h1>
-        <p class="mt-6 text-sm leading-relaxed text-muted-foreground">SSD 반품 데이터에서 반복되는 문제를 발견하고,<br />근거 있는 의사결정으로 연결합니다.</p>
+        <p class="mt-6 text-sm leading-relaxed text-muted-foreground">PCB 반품 데이터에서 반복되는 문제를 발견하고,<br />근거 있는 의사결정으로 연결합니다.</p>
       </div>
       <p class="text-[12px] text-muted-foreground">© 2026 E!ffect RMA Intelligence</p>
       <span class="pointer-events-none absolute -bottom-64 -right-64 size-[500px] rounded-full border-[80px] border-[#ea002c08]" />

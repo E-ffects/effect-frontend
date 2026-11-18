@@ -187,7 +187,7 @@ const filteredHistory = computed(() =>
 </script>
 
 <template>
-  <PageHead :crumb="false" title="AI 분석 보고서" description="SSD 사례별 보고서를 생성하고, 수정, 검토, 취소할 수 있습니다.">
+  <PageHead :crumb="false" title="AI 분석 보고서" description="PCB 사례별 보고서를 생성하고, 수정, 검토, 취소할 수 있습니다.">
     <template #actions>
       <Button variant="outline" :disabled="!current || !!editing || !!draft" :loading="pdfBusy" @click="downloadPdf"><FileDown class="size-4" />PDF 다운로드</Button>
     </template>
@@ -302,20 +302,20 @@ const filteredHistory = computed(() =>
         <div class="h-1" style="background: linear-gradient(90deg, #ea002c 0%, #f47725 100%)" />
         <header class="border-b border-[#f3dfe3] px-9 pb-6 pt-7" style="background: linear-gradient(160deg, #fff1f3 0%, #fff7f1 48%, #ffffff 100%)">
         <div class="flex items-start justify-between gap-4">
-          <p class="text-[13px] font-extrabold tracking-[0.8px] text-primary">E!FFECT / SSD ANALYSIS REPORT</p>
+          <p class="text-[13px] font-extrabold tracking-[0.8px] text-primary">E!FFECT / PCB ANALYSIS REPORT</p>
           <Badge :tone="current.reviewed ? 'green' : 'yellow'">{{ current.reviewed ? '확인 완료' : '미확인' }}</Badge>
         </div>
         <h2 class="mt-3 text-[32px] font-extrabold leading-[1.25] tracking-[-0.03em]">{{ current.product }} {{ current.defect_type }}<br />RMA 분석 보고서</h2>
         <div class="mt-2 flex items-center justify-between gap-3">
           <p class="text-sm font-medium text-[#5f6673]">
-            {{ current.rma_id }}, SSD 분석 초안<span v-if="current.content.edited_by">, {{ current.content.edited_by }} 수정 {{ current.content.edited_at.replace('T', ' ') }}</span>
+            {{ current.rma_id }}, PCB 분석 초안<span v-if="current.content.edited_by">, {{ current.content.edited_by }} 수정 {{ current.content.edited_at.replace('T', ' ') }}</span>
             <span v-if="current.reviewed">, 검토 {{ current.reviewed_by }} {{ fmtDateTime(current.reviewed_at) }}</span>
           </p>
           <Button v-if="!editing" data-pdf-ignore variant="outline" size="sm" @click="startEdit"><PenLine class="size-3.5" />본문 수정</Button>
         </div>
 
         <dl class="mt-6 grid grid-cols-4 gap-px overflow-hidden rounded-xl border border-[#f1dfe2] bg-[#f1dfe2] text-[13px]">
-          <div class="bg-white/80 px-4 py-3"><dt class="text-muted-foreground">대상 제품</dt><dd class="mt-1 text-[15px] font-bold">{{ current.product }} / SSD</dd></div>
+          <div class="bg-white/80 px-4 py-3"><dt class="text-muted-foreground">대상 제품</dt><dd class="mt-1 text-[15px] font-bold">{{ current.product }} / PCB</dd></div>
           <div class="bg-white/80 px-4 py-3"><dt class="text-muted-foreground">접수일</dt><dd class="mt-1 text-[15px] font-bold tabular">{{ fmtDate(current.claim_date) }}</dd></div>
           <div class="bg-white/80 px-4 py-3"><dt class="text-muted-foreground">심각도</dt><dd class="mt-1"><Badge :tone="SEVERITY_TONE[current.severity]">{{ current.severity }}</Badge></dd></div>
           <div class="bg-white/80 px-4 py-3"><dt class="text-muted-foreground">생성일</dt><dd class="mt-1 text-[15px] font-bold tabular">{{ fmtDateTime(current.generated_at) }}</dd></div>

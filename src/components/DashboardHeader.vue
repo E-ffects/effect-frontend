@@ -37,7 +37,8 @@ const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const parts = computed(() => {
   const text = summary.value || ''
   const types = (meta.value?.defect_types || []).slice().sort((a, b) => b.length - a.length).map(esc)
-  const subject = `PRD-[A-Z](?:\\s*(?:${types.join('|') || '(?!)'}))?|RMA-\\d{4}`
+  const products = (meta.value?.products || []).map((p) => esc(p.code)).join('|')
+  const subject = `(?:${products || '(?!)'})(?:\\s*(?:${types.join('|') || '(?!)'}))?|RMA-\\d+`
   const number = '\\d[\\d,.]*\\s?(?:%p|%|건|개|일|대|억원|만원|원)'
   const re = new RegExp(`(${subject})|(${number})`, 'g')
   const out = []

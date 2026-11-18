@@ -196,7 +196,7 @@ function scrollToOpen(el) {
 </script>
 
 <template>
-  <PageHead :crumb="false" title="RMA 사례 조회" description="SSD 반품 사례의 검색, 분석, 처리 이력을 확인하세요." />
+  <PageHead :crumb="false" title="RMA 사례 조회" description="PCB 반품 사례의 검색, 분석, 처리 이력을 확인하세요." />
 
   <form class="mb-3 grid grid-cols-9 gap-2 rounded-[14px] border bg-card p-4" @submit.prevent="search" @keydown.enter.prevent="search">
     <div class="col-span-6 mb-1 flex items-center gap-2">

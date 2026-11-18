@@ -1,14 +1,16 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertTriangle, LogOut } from 'lucide-vue-next'
+import { AlertTriangle, LogOut, PanelRight } from 'lucide-vue-next'
 import BrandMark from './BrandMark.vue'
 import NotificationBell from './NotificationBell.vue'
-import ChatBot from './ChatBot.vue'
-import { api } from '@/lib/api'
-import { aiState, auth, clearSession } from '@/lib/state'
+import AgentPanel from './AgentPanel.vue'
+import { api, referenceDate } from '@/lib/api'
+import { useMeta } from '@/lib/meta'
+import { agentPanel, aiState, auth, clearSession, setAgentPanelOpen } from '@/lib/state'
 
 const router = useRouter()
+useMeta()
 const isQuality = computed(() => auth.user?.role === 'QUALITY')
 const initials = computed(() => (auth.user?.name || '').slice(-2))
 
@@ -81,6 +83,14 @@ function logout() {
             AI {{ aiState.available ? '정상' : '장애' }}
             <span v-if="aiState.provider" class="text-muted-foreground/70">{{ aiState.provider.startsWith('gemini') ? 'Gemini' : '규칙 기반' }}</span>
           </button>
+          <button
+            :aria-pressed="agentPanel.open"
+            :class="agentPanel.open ? 'border-brand-line bg-brand-soft text-primary' : 'text-[#4a505c] hover:bg-muted'"
+            class="flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[13px] font-semibold"
+            @click="setAgentPanelOpen(!agentPanel.open)"
+          >
+            <PanelRight class="size-4" />에이전트
+          </button>
           <NotificationBell v-if="isQuality" />
           <span class="flex items-center gap-2 text-sm">
             <span class="grid size-8 place-items-center rounded-full bg-muted text-[12px] font-bold">{{ initials }}</span>
@@ -92,17 +102,22 @@ function logout() {
       <div v-if="!aiState.available" class="border-t border-amber-200 bg-amber-50">
         <div class="mx-auto flex max-w-[1480px] items-center gap-2 px-6 py-2 text-xs text-amber-800">
           <AlertTriangle class="size-3.5" />
-          <b>AI 일시 불가</b> — AI 요약, 유사 사례 분석, 챗봇, 보고서 생성이 잠시 중단되었습니다. RMA 조회, 검색, 대시보드 집계는 정상 동작합니다. (60초마다 자동 재확인)
+          <b>AI 일시 불가</b> — AI 요약과 보고서 생성이 잠시 중단되었습니다. RMA 조회, 검색, 대시보드 집계는 정상 동작합니다. (60초마다 자동 재확인)
         </div>
       </div>
     </header>
-    <main class="mx-auto max-w-[1480px] px-6 py-7">
-      <slot />
-    </main>
-    <footer class="mx-auto flex max-w-[1480px] justify-between px-6 pb-8 text-[12px] text-[#6f7684]">
-      <span>© 2026 E!ffect. RMA Intelligence Workspace.</span>
-      <span>데이터 기준 SSD_RMA_3000_v18</span>
-    </footer>
-    <ChatBot />
+    <!-- 왼쪽 업무 화면 + 오른쪽 에이전트 패널 (데스크톱에서는 나란히, 좁은 화면에서는 패널이 위에 뜬다) -->
+    <div class="flex items-start">
+      <div class="min-w-0 flex-1">
+        <main class="mx-auto max-w-[1480px] px-6 py-7">
+          <slot />
+        </main>
+        <footer class="mx-auto flex max-w-[1480px] justify-between px-6 pb-8 text-[12px] text-[#6f7684]">
+          <span>© 2026 E!ffect. RMA Intelligence Workspace.</span>
+          <span>PCB RMA v4 · 기준일 {{ referenceDate }}</span>
+        </footer>
+      </div>
+      <AgentPanel />
+    </div>
   </div>
 </template>

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { X } from 'lucide-vue-next'
-import { dismissToast, scheduleDismiss, toasts } from '@/lib/state'
+import { agentPanel, auth, dismissToast, scheduleDismiss, toasts } from '@/lib/state'
 
 const router = useRouter()
 const MAX = 3
@@ -23,7 +23,8 @@ function hold(t) {
 </script>
 
 <template>
-  <div class="fixed bottom-24 right-6 z-[60] flex w-[360px] flex-col gap-2">
+  <!-- 데스크톱에서 에이전트 패널이 열려 있으면 패널을 가리지 않게 왼쪽 업무 화면 쪽에 띄운다 -->
+  <div :class="agentPanel.open && auth.token ? 'lg:right-[404px]' : ''" class="fixed bottom-6 right-6 z-[60] flex w-[360px] flex-col gap-2">
     <p v-if="hidden" class="self-end rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground">외 {{ hidden }}건</p>
     <TransitionGroup enter-from-class="opacity-0 translate-y-2" enter-active-class="transition" leave-to-class="opacity-0" leave-active-class="transition">
       <div

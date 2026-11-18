@@ -9,7 +9,7 @@ const LEVELS = [
   { s: 'CRITICAL', desc: '데이터 무결성 손상 또는 안전 영향 확인', pts: 100 },
   { s: 'HIGH', desc: '기본 저장 기능 사용 불가 확인', pts: 70 },
   { s: 'MEDIUM', desc: '읽기와 쓰기는 되나 성능 저하 재현', pts: 40 },
-  { s: 'LOW', desc: '포장 손상, SSD 기능 검사는 통과', pts: 10 },
+  { s: 'LOW', desc: '포장 손상, PCB 기능 검사는 통과', pts: 10 },
   { s: '판정 보류', desc: '검사 증거가 아직 없음', pts: 0 },
 ]
 </script>

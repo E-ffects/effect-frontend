@@ -71,7 +71,7 @@ function openReport(row) {
         <KpiCard label="총 RMA" :icon="Package" :value="data.kpis.total_rma.value" unit="건" :delta="deltaShort(data.kpis.total_rma.change_pct)" :delta-tone="tone(data.kpis.total_rma.change_pct)" note="직전 동기간 대비" @click="toList()" />
         <KpiCard label="반복 불량 패턴" :icon="Repeat" :value="data.kpis.repeat_patterns.value" unit="개" :delta="data.kpis.repeat_patterns.new ? `신규 ${data.kpis.repeat_patterns.new}` : ''" delta-tone="warn" note="같은 패턴 2건 이상 기준" @click="scrollToRepeat" />
         <KpiCard label="재발 의심" :icon="Bell" :value="data.kpis.recurrence_suspected.value" unit="건" :delta="data.kpis.recurrence_suspected.value ? '담당자 확인 필요' : ''" delta-tone="warn" :note="data.kpis.recurrence_suspected.spread ? `확산형 ${data.kpis.recurrence_suspected.spread}건` : ''" @click="router.push('/quality/recurrence')" />
-        <KpiCard label="손실 금액" :icon="Banknote" :value="fmtWon(data.kpis.loss.value)" :delta="deltaShort(data.kpis.loss.change_pct)" :delta-tone="tone(data.kpis.loss.change_pct)" note="선택 기간 누적 손실" @click="toList()" />
+        <KpiCard label="가정 단가 기반 추정 손실" :icon="Banknote" :value="fmtWon(data.kpis.loss.value)" :delta="deltaShort(data.kpis.loss.change_pct)" :delta-tone="tone(data.kpis.loss.change_pct)" note="선택 기간 발생분" @click="toList()" />
       </template>
       <template v-else><Skeleton v-for="i in 4" :key="i" class="h-[112px] rounded-xl" /></template>
     </template>
@@ -125,7 +125,7 @@ function openReport(row) {
             <thead class="text-xs text-muted-foreground">
               <tr>
                 <th class="py-2 text-left font-medium">순위</th><th class="text-left font-medium">패턴 / 제품</th><th class="text-left font-medium">불량 유형</th>
-                <th class="text-left font-medium">발생</th><th class="text-left font-medium">손실액</th><th class="text-left font-medium"><RiskTip /></th>
+                <th class="text-left font-medium">발생</th><th class="text-left font-medium">가정 단가 기반 추정 손실</th><th class="text-left font-medium"><RiskTip /></th>
                 <th class="text-left font-medium">점수</th><th class="text-left font-medium"><UrgencyTip /></th><th />
               </tr>
             </thead>

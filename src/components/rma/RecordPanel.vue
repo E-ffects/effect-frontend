@@ -22,7 +22,7 @@ const editing = ref(null)
 
 const nextOptions = computed(() => STATUSES.slice(STATUSES.indexOf(props.rma.claim_status) + 1))
 const records = computed(() => props.rma.timeline.filter((e) => e.kind === 'record').reverse())
-const methodPh = computed(() => (props.view === 'cs' ? '응대 내용 (예: 교체품 출하, 수리 접수, 환불 처리)' : '처리 방법 (예: LOT 격리 후 펌웨어 재기록)'))
+const methodPh = computed(() => (props.view === 'cs' ? '응대 내용 (예: 교체품 출하, 선별 지원, 대금 차감)' : '처리 방법 (예: Lot 격리 후 도통 재검사)'))
 
 async function save() {
   if (!method.value.trim()) return
@@ -94,7 +94,7 @@ async function saveEdit() {
         <Select v-model="nextStatus" size="sm" placeholder="상태 유지" :options="nextOptions.map((s) => ({ value: s, label: `${s}` }))" />
         <template v-if="nextStatus === '처리완료'">
           <Select v-if="view === 'quality'" v-model="actionResult" size="sm" :options="['효과있음', '부분효과', '효과없음']" />
-          <Select v-if="view === 'cs'" v-model="disposition" size="sm" placeholder="처분" :options="['교체', '수리', '환불', '무상보증']" />
+          <Select v-if="view === 'cs'" v-model="disposition" size="sm" placeholder="처분" :options="['교체품 출하', '대금 차감', '선별 지원·대금 차감', '무상 샘플 반송']" />
           <Select v-if="view === 'cs'" v-model="satisfaction" size="sm" placeholder="고객 만족도" :options="[5, 4, 3, 2, 1].map((n) => ({ value: n, label: `만족도 ${n}` }))" />
         </template>
         <Button type="submit" size="sm" class="ml-auto" :disabled="!method.trim()" :loading="saving">저장</Button>

@@ -18,14 +18,14 @@ const boxCls = (...labels) =>
 <template>
   <!-- 보고서 본문: 16px · 줄간격 1.8 · 한 줄 최대 880px (긴 문장이 화면 끝까지 늘어지지 않게) -->
   <div class="max-w-[880px] space-y-8 text-[16px] leading-[1.8] text-[#2b2f38]">
-    <section :class="boxCls('주요 원인')">
+    <section v-if="focus === 'quality'" :class="boxCls('주요 원인')">
       <h4 class="mb-3 flex items-center gap-2.5 text-[17px] font-bold tracking-[-0.02em] text-foreground">
         <span class="text-[14px] font-extrabold text-primary tabular">01</span>주요 원인 분석
         <span v-if="isChanged('주요 원인')" class="ml-auto rounded bg-primary px-1.5 py-0.5 text-[12px] font-bold text-white">변경</span>
       </h4>
       <p>{{ content.main_cause }}</p>
     </section>
-    <section :class="boxCls('과거 유사 사례')">
+    <section v-if="focus === 'quality'" :class="boxCls('과거 유사 사례')">
       <h4 class="mb-3 flex items-center gap-2.5 text-[17px] font-bold tracking-[-0.02em] text-foreground">
         <span class="text-[14px] font-extrabold text-primary tabular">02</span>과거 유사 사례
         <span v-if="isChanged('과거 유사 사례')" class="ml-auto rounded bg-primary px-1.5 py-0.5 text-[12px] font-bold text-white">변경</span>

@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, daysAgo } from './api'
+import { api, daysAgo, referenceDate } from './api'
 
 const meta = ref(null)
 let pending = null
@@ -9,7 +9,11 @@ let pending = null
 export function useMeta() {
   if (!meta.value && !pending) {
     pending = api('/meta')
-      .then((m) => (meta.value = m))
+      .then((data) => {
+        if (data.reference_date) referenceDate.value = data.reference_date
+        meta.value = data
+      })
+      .catch(() => null)
       .finally(() => (pending = null))
   }
   return meta

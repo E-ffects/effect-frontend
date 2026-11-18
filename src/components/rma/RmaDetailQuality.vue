@@ -73,8 +73,8 @@ const openRma = (id) => router.push({ path: '/rmas', query: { open: id } })
             <dt class="text-muted-foreground">제품</dt><dd>{{ rma.product }} {{ rma.product_name }} <Badge tone="outline">중요도 {{ rma.importance }}</Badge></dd>
             <dt class="text-muted-foreground">접수 채널</dt><dd>{{ rma.claim_channel }}</dd>
             <dt class="text-muted-foreground">설비 / 공정</dt><dd>{{ rma.equipment_id ? `${rma.equipment_id} / ${rma.process_id}` : '제조 이력 미확인' }}</dd>
-            <template v-if="rma.serial_numbers?.length"><dt class="text-muted-foreground">시리얼</dt><dd class="font-mono text-[13px]" :title="rma.serial_numbers.join(', ')">{{ rma.serial_numbers.slice(0, 3).join(', ') }}<span v-if="rma.serial_numbers.length > 3" class="font-sans text-xs text-muted-foreground"> 외 {{ rma.serial_numbers.length - 3 }}개</span></dd></template>
-            <dt class="text-muted-foreground">LOT</dt><dd>{{ rma.lot_number || (rma.serial_numbers?.length ? '시리얼 조회 전' : '미확인') }}</dd>
+            <template v-if="rma.serial_numbers?.length"><dt class="text-muted-foreground">패널 식별자</dt><dd class="font-mono text-[13px]" :title="rma.serial_numbers.join(', ')">{{ rma.serial_numbers.slice(0, 3).join(', ') }}<span v-if="rma.serial_numbers.length > 3" class="font-sans text-xs text-muted-foreground"> 외 {{ rma.serial_numbers.length - 3 }}개</span></dd></template>
+            <dt class="text-muted-foreground">LOT</dt><dd>{{ rma.lot_number || (rma.serial_numbers?.length ? '패널 이력 확인 전' : '미확인') }}</dd>
             <dt class="text-muted-foreground">불량 유형</dt>
             <dd class="font-medium">{{ rma.defect_type }}<template v-if="rma.defect_subtype">&nbsp;<span class="text-[#c4c8cf]">/</span> {{ rma.defect_subtype }}</template> <Badge v-if="rma.subtype_source" :tone="rma.classification_status === '분류 완료' ? 'blue' : rma.classification_status === '정보 부족' || rma.classification_status === '미분류' ? 'gray' : 'yellow'" :title="rma.classification_reason || '접수 후 상세 설명으로 자동 분류한 결과'">{{ rma.classification_status }}</Badge></dd>
             <template v-if="rma.subtype_candidates?.length"><dt class="text-muted-foreground">소분류 후보</dt><dd>{{ rma.subtype_candidates.join(', ') }}</dd></template>
@@ -86,7 +86,7 @@ const openRma = (id) => router.push({ path: '/rmas', query: { open: id } })
             <dd v-if="rma.root_cause">{{ rma.root_cause }} <Badge :tone="rma.root_cause_confirmed ? 'green' : 'blue'">{{ rma.root_cause_confirmed ? '확정' : 'AI 추정' }}</Badge></dd>
             <dd v-else class="text-muted-foreground">미확정 <span class="text-xs">(AI 보고서에서 유사 사례 기반 추정 확인)</span></dd>
             <dt class="text-muted-foreground">심각도 근거</dt><dd class="text-xs">{{ rma.severity_basis || '-' }}</dd>
-            <dt class="text-muted-foreground">손실 금액</dt><dd class="tabular">{{ rma.financial_impact_krw != null ? fmtWon(rma.financial_impact_krw) : '정산 대기' }}</dd>
+            <dt class="text-muted-foreground">가정 단가 기반 추정 손실</dt><dd class="tabular">{{ rma.financial_impact_krw != null ? fmtWon(rma.financial_impact_krw) : '기록 없음' }}</dd>
           </dl>
         </Section>
 
@@ -123,14 +123,14 @@ const openRma = (id) => router.push({ path: '/rmas', query: { open: id } })
           </Section>
         </div>
 
-        <Section no="5" title="과거 유사 사례 비교 (Top 5)" note="접수일 이전, 유사도 0.7 이상" class="col-span-12">
+        <Section no="5" title="과거 유사 사례 비교 (Top 5)" note="접수 전에 확인된 동일 소분류 사례" class="col-span-12">
           <template v-if="rma.completed && similarState === 'idle'" #actions>
             <Button size="sm" variant="outline" @click="loadSimilar"><Search class="size-3.5" />유사 사례 검색</Button>
           </template>
           <p v-if="rma.completed && similarState === 'idle'" class="text-sm text-muted-foreground">처리완료 건은 유사 사례를 기본으로 표시하지 않습니다. [유사 사례 검색]을 누르면 검색합니다.</p>
           <div v-else-if="similarState === 'loading'" class="grid grid-cols-5 gap-3"><Skeleton v-for="i in 5" :key="i" class="h-40" /></div>
           <p v-else-if="similarState === 'error'" class="text-sm text-amber-700">유사 사례를 불러오지 못했습니다.</p>
-          <p v-else-if="!similar?.items.length" class="text-sm text-muted-foreground">유사도 0.7 이상인 과거 사례가 없습니다</p>
+          <p v-else-if="!similar?.items.length" class="text-sm text-muted-foreground">접수 전 원인이 확인된 같은 소분류 사례가 없습니다</p>
           <div v-else class="grid grid-cols-5 gap-3">
             <div v-for="s in similar.items" :key="s.rma_id" class="rounded-md border p-3 text-xs">
               <div class="flex items-center justify-between">
@@ -140,10 +140,10 @@ const openRma = (id) => router.push({ path: '/rmas', query: { open: id } })
               <div class="mt-1 h-1 rounded-full bg-muted"><div class="h-1 rounded-full bg-sk-red" :style="{ width: s.similarity * 100 + '%' }" /></div>
               <dl class="mt-2 space-y-1">
                 <div><dt class="inline text-muted-foreground">판단 근거 </dt><dd class="inline">{{ s.basis }}</dd></div>
-                <div><dt class="inline text-muted-foreground">과거 조치 </dt><dd class="inline">{{ s.past_action }}</dd></div>
-                <div class="flex items-center gap-1"><dt class="text-muted-foreground">결과</dt><dd><Badge :tone="RESULT_TONE[s.result]">{{ s.result }}</Badge></dd></div>
+                <div><dt class="inline text-muted-foreground">과거 조치 </dt><dd class="inline">{{ s.past_action || '기록 없음' }}</dd></div>
+                <div class="flex items-center gap-1"><dt class="text-muted-foreground">결과</dt><dd><Badge :tone="RESULT_TONE[s.result]">{{ s.result || '기록 없음' }}</Badge></dd></div>
                 <div class="flex items-center gap-1"><dt class="text-muted-foreground">재발</dt><dd><Badge :tone="s.recurrence ? 'purple' : 'gray'">{{ s.recurrence ? '있음' : '없음' }}</Badge></dd></div>
-                <div><dt class="inline text-muted-foreground">해결 소요 </dt><dd class="inline tabular">{{ s.days_to_resolve }}일</dd></div>
+                <div><dt class="inline text-muted-foreground">해결 소요 </dt><dd class="inline tabular">{{ s.days_to_resolve == null ? '기록 없음' : `${s.days_to_resolve}일` }}</dd></div>
               </dl>
             </div>
           </div>

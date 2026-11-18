@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { CheckCircle2, RotateCcw, Send } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -9,22 +9,23 @@ import Input from '@/components/ui/Input.vue'
 import Select from '@/components/ui/Select.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHead from '@/components/PageHead.vue'
-import { api } from '@/lib/api'
-import { reportLoadError, toast } from '@/lib/state'
+import { api, referenceDate } from '@/lib/api'
+import { agentPanel, reportLoadError, toast } from '@/lib/state'
 
 // CS 반품·불량 접수: 대분류와 상세 설명(자연어)을 입력해 등록한다.
 // 저장 뒤 서버가 상세 설명으로 소분류를 자동 분류해 함께 저장한다 (CS는 소분류를 고르거나 확인하지 않음).
 const router = useRouter()
+const route = useRoute()
 const opts = ref(null)
-const today = new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD (로컬 날짜)
+const today = computed(() => opts.value?.reference_date || referenceDate.value)
 const DETAIL_MIN = 10
 const DETAIL_MAX = 1000
 const ETC = '기타' // 목록에 없는 불량: 내용은 상세 설명으로 받는다
-const DETAIL_PLACEHOLDER = '예) 서버에 장착하면 전원은 들어오지만 드라이브가 인식되지 않습니다.\n대용량 백업을 시작하고 30분쯤 지나면 연결이 끊깁니다.\n커넥터 옆 라벨이 약 2cm 찢어져 있었습니다.\n\n언제, 어떤 장비에서, 어떤 증상이 나타났는지 상세히 적어 주세요.'
+const DETAIL_PLACEHOLDER = '예) ICT 기능 검사에서 전원 라인의 단선이 확인됐습니다.\n투입한 950개 중 6개에서 같은 증상이 재현됐습니다.\n\n발견 단계와 확인한 증상을 상세히 적어 주세요.'
 
 const blank = () => ({
   customer_name: '', claim_channel: '', product: '', claim_qty: 1, serial_text: '',
-  occurrence_date: today, detection_stage: '고객사', customer_request: '', major: '', detail: '',
+  occurrence_date: today.value, detection_stage: 'CUSTOMER_IQC', customer_request: '', major: '', detail: '',
 })
 const form = reactive(blank())
 const tried = ref(false) // 접수를 한 번 눌렀으면 빈 필수 항목을 표시
@@ -34,6 +35,7 @@ const done = ref(null) // 접수 완료 결과 (자동 분류 결과 포함)
 onMounted(async () => {
   try {
     opts.value = await api('/intake/options')
+    form.occurrence_date = today.value
   } catch (e) {
     reportLoadError(e)
   }
@@ -59,10 +61,10 @@ const errors = computed(() => ({
   claim_channel: !form.claim_channel && '접수 채널을 선택하세요',
   product: !form.product && '제품을 선택하세요',
   claim_qty: !(Number(form.claim_qty) >= 1) && '1개 이상 입력하세요',
-  occurrence_date: (!form.occurrence_date && '발생일을 입력하세요') || (form.occurrence_date > today && '발생일은 오늘 이후일 수 없습니다'),
+  occurrence_date: (!form.occurrence_date && '발생일을 입력하세요') || (form.occurrence_date > today.value && '발생일은 오늘 이후일 수 없습니다'),
   major: !form.major && '불량 대분류를 선택하세요',
   detail: detailLen.value < DETAIL_MIN && `상세 설명을 ${DETAIL_MIN}자 이상 적어 주세요`,
-  serials: (serialOver.value && `시리얼이 클레임 수량보다 ${serials.value.length - (Number(form.claim_qty) || 0)}개 많습니다`) || (serials.value.some((x) => x.length > 40) && '시리얼 번호는 40자 이내로 입력하세요'),
+  serials: (serialOver.value && `시리얼이 클레임 수량보다 ${serials.value.length - (Number(form.claim_qty) || 0)}개 많습니다`) || (serials.value.some((x) => x.length > 40) && '패널 식별자는 40자 이내로 입력하세요'),
 }))
 const err = (k) => (tried.value ? errors.value[k] : '')
 const valid = computed(() => !Object.values(errors.value).some(Boolean))
@@ -78,8 +80,11 @@ async function submit() {
     const { serial_text: _s, ...rest } = form
     const body = { ...rest, claim_qty: Number(form.claim_qty), customer_request: form.customer_request || null, serial_numbers: serials.value }
     const res = await api('/intake', { method: 'POST', body })
-    done.value = { ...res, customer_name: form.customer_name, product: form.product, claim_qty: form.claim_qty, serials: serials.value.length }
+    agentPanel.intake = res // 오른쪽 패널에 분석 진행 상태 표시
     toast({ title: `${res.rma_id} 접수했습니다`, description: '품질팀 RMA 조회에 바로 나타납니다', tone: 'green' })
+    // 에이전트 패널에서 시작한 접수는 저장 후 바로 새 RMA 상세로 이동한다
+    if (route.query.from === 'agent') return router.push({ path: '/rmas', query: { open: res.rma_id } })
+    done.value = { ...res, customer_name: form.customer_name, product: form.product, claim_qty: form.claim_qty, serials: serials.value.length }
   } catch (e) {
     toast({ title: e.message, tone: 'red' })
   } finally {
@@ -98,11 +103,11 @@ const afterSteps = computed(() => [
   { title: 'RMA 저장', desc: "상태 '분석 대기', 심각도 '판정 보류'" },
   { title: '소분류 자동 분류', desc: `상세 설명으로 분류해 함께 저장합니다` },
   { title: '품질팀 분석', desc: '검사와 이력을 바탕으로 원인을 확정합니다' },
-  { title: '고객 처리 결정 및 안내', desc: '분석 결과를 받아 교체, 수리, 환불을 정하고 고객에게 안내합니다' },
+  { title: '고객 처리 결정 및 안내', desc: '분석 결과를 받아 교체나 선별 지원 등 처리를 정하고 고객에게 안내합니다' },
 ])
 
 const statusTone = (s) => (s === '분류 완료' ? 'green' : s === '정보 부족' || s === '미분류' ? 'gray' : 'yellow')
-const plain = (s) => s.replaceAll('·', '/') // v14 대분류명의 가운뎃점은 화면에서만 바꾼다 (저장값은 원본 유지)
+const plain = (s) => s.replaceAll('·', '/') // 화면 표시용 구분 기호
 const field = 'grid gap-1.5'
 const labelCls = 'text-[13px] font-semibold text-[#3b404a]'
 const hintCls = 'text-xs text-muted-foreground'
@@ -118,7 +123,7 @@ const reqCls = 'ml-0.5 text-sk-orange'
     <div class="flex flex-col items-center py-6 text-center">
       <CheckCircle2 class="size-10 text-emerald-600" />
       <h2 class="mt-3 text-[20px] font-bold tracking-tight">{{ done.rma_id }} 접수 완료</h2>
-      <p class="mt-1 text-sm text-muted-foreground">{{ done.customer_name }}, {{ done.product }}, {{ done.claim_qty }}개<template v-if="done.serials">, 시리얼 {{ done.serials }}개</template></p>
+      <p class="mt-1 text-sm text-muted-foreground">{{ done.customer_name }}, {{ done.product }}, {{ done.claim_qty }}개<template v-if="done.serials">, 패널 {{ done.serials }}개</template></p>
       <dl class="mt-5 grid w-full max-w-[440px] grid-cols-[96px_1fr] gap-y-2.5 rounded-lg bg-muted/50 px-4 py-3 text-left text-sm">
         <dt class="text-muted-foreground">불량 유형</dt>
         <dd class="font-medium">{{ plain(done.major) }}<template v-if="done.subtype">&nbsp;<span class="text-[#c4c8cf]">/</span> {{ plain(done.subtype) }}</template></dd>
@@ -177,7 +182,7 @@ const reqCls = 'ml-0.5 text-sk-orange'
           </div>
           <div :class="field" class="sm:col-span-2">
             <div class="flex items-end justify-between">
-              <label :class="labelCls" for="f-serial">시리얼 번호 <span class="font-normal text-muted-foreground">(선택, SSD 라벨의 S/N)</span></label>
+              <label :class="labelCls" for="f-serial">패널 식별자 <span class="font-normal text-muted-foreground">(선택, PCB 패널 라벨)</span></label>
               <span :class="serialOver ? 'text-destructive' : 'text-muted-foreground'" class="text-xs tabular">{{ serials.length }}개 입력 / 수량 {{ Number(form.claim_qty) || 0 }}개</span>
             </div>
             <textarea
@@ -187,7 +192,7 @@ const reqCls = 'ml-0.5 text-sk-orange'
               class="w-full resize-y rounded-md border bg-card px-3 py-2 font-mono text-[13px] leading-relaxed shadow-xs placeholder:font-sans placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             />
             <p v-if="err('serials')" :class="errCls">{{ err('serials') }}</p>
-            <p v-else :class="hintCls">LOT, 생산 공정, 설비는 품질팀 분석 단계에서 시리얼로 조회합니다. 고객이 모르면 비워 두세요.</p>
+            <p v-else :class="hintCls">패널 식별자는 품질팀이 생산 이력을 대조할 때 사용합니다. 모르면 비워 두세요.</p>
           </div>
         </div>
       </fieldset>
@@ -254,7 +259,7 @@ const reqCls = 'ml-0.5 text-sk-orange'
             </div>
           </div>
         </div>
-        <p :class="hintCls" class="mt-3">접수일은 오늘({{ today }})로 기록됩니다.</p>
+        <p :class="hintCls" class="mt-3">접수일은 시연 기준일({{ today }})로 기록됩니다.</p>
       </fieldset>
     </Card>
 

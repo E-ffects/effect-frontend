@@ -31,6 +31,7 @@ export function setSession(token, user) {
 
 export function clearSession() {
   setSession(null, null)
+  agentPanel.thread = [] // 다른 역할로 로그인했을 때 이전 역할의 결과가 남지 않게
 }
 
 export function homePath(user = auth.user) {
@@ -40,8 +41,16 @@ export function homePath(user = auth.user) {
 // AI 서비스 상태 (NFR-02-3) — 503 응답이나 health 체크로 갱신
 export const aiState = reactive({ available: true, provider: null })
 
-// 챗봇 질의 맥락: RMA 목록에서 펼친 행 (FR-05-4)
+// 에이전트 패널의 분석 대상: RMA 목록에서 펼친 행 (FR-05-4)
 export const chatContext = reactive({ rmaId: null })
+
+// 오른쪽 에이전트 패널: 열림 여부는 기억하고, 대화(작업 결과)는 세션 동안 화면을 옮겨도 유지한다
+export const agentPanel = reactive({ open: load('rma.agentPanel') ?? true, thread: [], intake: null })
+
+export function setAgentPanelOpen(open) {
+  agentPanel.open = open
+  save('rma.agentPanel', open)
+}
 
 // 토스트
 export const toasts = reactive({ items: [] })

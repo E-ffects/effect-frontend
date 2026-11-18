@@ -122,7 +122,7 @@ const satStars = (n) => (n ? '★'.repeat(n) + '☆'.repeat(5 - n) : '—')
           </Section>
         </div>
 
-        <Section no="5" title="과거 유사 사례 비교 (고객 응대 관점)" note="접수일 이전, 유사도 0.7 이상" class="col-span-12">
+        <Section no="5" title="과거 유사 사례 비교 (고객 응대 관점)" note="접수 전에 확인된 동일 소분류 사례" class="col-span-12">
           <template v-if="rma.completed && similarState === 'idle'" #actions>
             <Button size="sm" variant="outline" @click="loadSimilar"><Search class="size-3.5" />유사 사례 검색</Button>
           </template>
@@ -145,8 +145,8 @@ const satStars = (n) => (n ? '★'.repeat(n) + '☆'.repeat(5 - n) : '—')
                 </div>
                 <dl class="mt-2 space-y-1">
                   <div><dt class="inline text-muted-foreground">고객 증상 </dt><dd class="inline">{{ s.symptom }}</dd></div>
-                  <div><dt class="inline text-muted-foreground">처분 </dt><dd class="inline font-medium">{{ s.disposition }}</dd></div>
-                  <div><dt class="inline text-muted-foreground">해결 소요 </dt><dd class="inline tabular">{{ s.days_to_resolve }}일</dd></div>
+                  <div><dt class="inline text-muted-foreground">처분 </dt><dd class="inline font-medium">{{ s.disposition || '기록 없음' }}</dd></div>
+                  <div><dt class="inline text-muted-foreground">해결 소요 </dt><dd class="inline tabular">{{ s.days_to_resolve == null ? '기록 없음' : `${s.days_to_resolve}일` }}</dd></div>
                   <div><dt class="inline text-muted-foreground">고객 만족도 </dt><dd class="inline tracking-wider">{{ satStars(s.satisfaction) }}</dd></div>
                   <div class="flex items-center gap-1"><dt class="text-muted-foreground">재접수</dt><dd><Badge :tone="s.reclaimed ? 'red' : 'gray'">{{ s.reclaimed ? '있음' : '없음' }}</Badge></dd></div>
                 </dl>

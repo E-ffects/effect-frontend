@@ -19,6 +19,7 @@ const menus = computed(() =>
     ? [
         { to: '/quality/dashboard', label: '대시보드' },
         { to: '/rmas', label: 'RMA 조회' },
+        { to: '/quality/approvals', label: '원인 판정' },
         { to: '/quality/patterns', label: '불량 패턴 분석' },
         { to: '/quality/recurrence', label: '알림 및 재발 관리' },
         { to: '/quality/reports', label: 'AI 보고서' },

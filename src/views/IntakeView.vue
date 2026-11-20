@@ -1,282 +1,266 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { CheckCircle2, RotateCcw, Send } from 'lucide-vue-next'
-import Badge from '@/components/ui/Badge.vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ArrowRight, FileText, Paperclip, Send, Upload, X } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import Input from '@/components/ui/Input.vue'
 import Select from '@/components/ui/Select.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHead from '@/components/PageHead.vue'
-import { api, referenceDate } from '@/lib/api'
-import { agentPanel, reportLoadError, toast } from '@/lib/state'
+import { api, MOCK } from '@/lib/api'
+import { reportLoadError, toast } from '@/lib/state'
 
-// CS 반품·불량 접수: 대분류와 상세 설명(자연어)을 입력해 등록한다.
-// 저장 뒤 서버가 상세 설명으로 소분류를 자동 분류해 함께 저장한다 (CS는 소분류를 고르거나 확인하지 않음).
+// CS 반품 접수 (Spring_API_v5 4-2): DB 필수 정보는 폼, 고객이 보낸 내용은 원문 파일로 첨부한다.
+// 접수하면 서버가 분류 → QA 판정 → 원인분석까지 자동으로 진행하고, 케이스 화면에서 결과를 본다.
 const router = useRouter()
-const route = useRoute()
-const opts = ref(null)
-const today = computed(() => opts.value?.reference_date || referenceDate.value)
-const DETAIL_MIN = 10
-const DETAIL_MAX = 1000
-const ETC = '기타' // 목록에 없는 불량: 내용은 상세 설명으로 받는다
-const DETAIL_PLACEHOLDER = '예) ICT 기능 검사에서 전원 라인의 단선이 확인됐습니다.\n투입한 950개 중 6개에서 같은 증상이 재현됐습니다.\n\n발견 단계와 확인한 증상을 상세히 적어 주세요.'
+const meta = ref(null)
+const RAW_EXT = ['.eml', '.txt', '.pdf']
+const MAX_BYTES = 20 * 1024 * 1024
 
-const blank = () => ({
-  customer_name: '', claim_channel: '', product: '', claim_qty: 1, serial_text: '',
-  occurrence_date: today.value, detection_stage: 'CUSTOMER_IQC', customer_request: '', major: '', detail: '',
+const form = reactive({
+  customer_id: '', reported_part_no: '', occurred_at: '', detection_stage: '',
+  claimed_defect_qty: '', input_qty: '', reported_lot_no: '', reported_date_code: '', panel_id: '', customer_request: '',
 })
-const form = reactive(blank())
-const tried = ref(false) // 접수를 한 번 눌렀으면 빈 필수 항목을 표시
+const rawFile = ref(null)
+const rawPreview = ref('')
+const others = ref([])
+const dragging = ref(false)
+const tried = ref(false)
 const saving = ref(false)
-const done = ref(null) // 접수 완료 결과 (자동 분류 결과 포함)
+const serverError = ref('')
 
 onMounted(async () => {
   try {
-    opts.value = await api('/intake/options')
-    form.occurrence_date = today.value
+    meta.value = await api('/meta')
+    form.occurred_at = meta.value.reference_date
   } catch (e) {
     reportLoadError(e)
   }
 })
 
-const productOptions = computed(() =>
-  (opts.value?.products || []).map((p) => ({ value: p.code, label: `${p.code} ${p.name}${p.customer ? `, ${p.customer}` : ''}` })),
-)
+const today = computed(() => meta.value?.reference_date)
+const customerOptions = computed(() => (meta.value?.customers || []).map((c) => ({ value: c.customer_id, label: c.customer_name })))
+const productOptions = computed(() => (meta.value?.products || []).map((p) => ({ value: p.part_no, label: `${p.part_no} (${p.spec_id})` })))
+const stageOptions = computed(() => (meta.value?.detection_stages || []).map((s) => ({ value: s.code, label: s.label })))
 
-// 고객사를 고르면 접수 채널 기본값을 맞춘다 (기업 → 전용 포털, 일반 → 웹폼)
-watch(() => form.customer_name, (c) => {
-  if (!c || !opts.value) return
-  const want = c === '일반 고객' ? opts.value.channels.find((x) => x.includes('일반')) : opts.value.channels.find((x) => x.includes('기업'))
-  if (want) form.claim_channel = want
-})
-
-const detailLen = computed(() => form.detail.trim().length)
-// 시리얼: 쉼표·줄바꿈·공백으로 구분, 대문자로 맞추고 중복 제거
-const serials = computed(() => [...new Set(form.serial_text.split(/[\s,;]+/).map((x) => x.trim().toUpperCase()).filter(Boolean))])
-const serialOver = computed(() => serials.value.length > (Number(form.claim_qty) || 0))
+const n = (v) => Number(v)
 const errors = computed(() => ({
-  customer_name: !form.customer_name && '고객사를 선택하세요',
-  claim_channel: !form.claim_channel && '접수 채널을 선택하세요',
-  product: !form.product && '제품을 선택하세요',
-  claim_qty: !(Number(form.claim_qty) >= 1) && '1개 이상 입력하세요',
-  occurrence_date: (!form.occurrence_date && '발생일을 입력하세요') || (form.occurrence_date > today.value && '발생일은 오늘 이후일 수 없습니다'),
-  major: !form.major && '불량 대분류를 선택하세요',
-  detail: detailLen.value < DETAIL_MIN && `상세 설명을 ${DETAIL_MIN}자 이상 적어 주세요`,
-  serials: (serialOver.value && `시리얼이 클레임 수량보다 ${serials.value.length - (Number(form.claim_qty) || 0)}개 많습니다`) || (serials.value.some((x) => x.length > 40) && '패널 식별자는 40자 이내로 입력하세요'),
+  customer_id: !form.customer_id && '고객사를 선택하세요',
+  reported_part_no: !form.reported_part_no && '제품 P/N을 선택하세요',
+  occurred_at: (!form.occurred_at && '발생일을 입력하세요') || (today.value && form.occurred_at > today.value && '발생일은 기준일 이후일 수 없습니다'),
+  detection_stage: !form.detection_stage && '발견 단계를 선택하세요',
+  claimed_defect_qty: !(n(form.claimed_defect_qty) >= 1) && '1 이상 입력하세요',
+  input_qty: (!(n(form.input_qty) >= 1) && '투입 수량을 입력하세요') || (n(form.input_qty) < n(form.claimed_defect_qty) && '신고 불량 수량보다 작을 수 없습니다'),
+  raw_file: !rawFile.value && '고객 원문 파일을 첨부하세요',
 }))
 const err = (k) => (tried.value ? errors.value[k] : '')
 const valid = computed(() => !Object.values(errors.value).some(Boolean))
 
+const ext = (name) => name.slice(name.lastIndexOf('.')).toLowerCase()
+async function setRaw(file) {
+  if (!file) return
+  if (!RAW_EXT.includes(ext(file.name))) return toast({ title: '원문은 .eml, .txt, .pdf 파일만 올릴 수 있습니다', tone: 'red' })
+  if (file.size > MAX_BYTES) return toast({ title: '20MB 이하 파일만 올릴 수 있습니다', tone: 'red' })
+  rawFile.value = file
+  rawPreview.value = ''
+  if (ext(file.name) !== '.pdf') {
+    const t = await file.text()
+    const i = ext(file.name) === '.eml' ? t.search(/\r?\n\r?\n/) : -1
+    rawPreview.value = (i > 0 ? t.slice(i) : t).replace(/<[^>]+>/g, ' ').trim().slice(0, 1200)
+  }
+}
+function onDrop(e) {
+  dragging.value = false
+  setRaw(e.dataTransfer.files?.[0])
+}
+function addOthers(list) {
+  const ok = [...list].filter((f) => f.size <= MAX_BYTES)
+  if (ok.length < list.length) toast({ title: '20MB를 넘는 파일은 제외했습니다', tone: 'red' })
+  others.value = [...others.value, ...ok].slice(0, 10)
+}
+const kb = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`)
+
 async function submit() {
   tried.value = true
-  if (!valid.value) {
-    toast({ title: '빠진 항목을 채워 주세요', tone: 'red' })
-    return
-  }
+  serverError.value = ''
+  if (!valid.value) return toast({ title: '빠진 항목을 채워 주세요', tone: 'red' })
   saving.value = true
   try {
-    const { serial_text: _s, ...rest } = form
-    const body = { ...rest, claim_qty: Number(form.claim_qty), customer_request: form.customer_request || null, serial_numbers: serials.value }
-    const res = await api('/intake', { method: 'POST', body })
-    agentPanel.intake = res // 오른쪽 패널에 분석 진행 상태 표시
-    toast({ title: `${res.rma_id} 접수했습니다`, description: '품질팀 RMA 조회에 바로 나타납니다', tone: 'green' })
-    // 에이전트 패널에서 시작한 접수는 저장 후 바로 새 RMA 상세로 이동한다
-    if (route.query.from === 'agent') return router.push({ path: '/rmas', query: { open: res.rma_id } })
-    done.value = { ...res, customer_name: form.customer_name, product: form.product, claim_qty: form.claim_qty, serials: serials.value.length }
+    const fd = new FormData()
+    for (const [k, v] of Object.entries(form)) if (String(v).trim()) fd.append(k, String(v).trim())
+    fd.append('raw_file', rawFile.value)
+    for (const f of others.value) fd.append('attachments', f)
+    const res = await api('/intake', { method: 'POST', body: fd })
+    toast({ title: `${res.rma_id} 접수했습니다`, tone: 'green' })
+    router.push(`/rmas/${res.rma_id}/case`)
   } catch (e) {
-    toast({ title: e.message, tone: 'red' })
+    serverError.value = e.message
   } finally {
     saving.value = false
   }
 }
 
-function again() {
-  Object.assign(form, blank())
-  tried.value = false
-  done.value = null
-}
+const OUTPUTS = [
+  { k: '증상 분류', d: '원문에서 소분류와 근거 문장' },
+  { k: 'QA 판정', d: '심각도·분석 수준(L1~L3)' },
+  { k: 'Lot 이력·이상 신호', d: '공정·설비·검사·자재' },
+  { k: '영향 후보 Lot', d: '같은 설비·자재를 쓴 Lot' },
+  { k: '원인 후보', d: '과거 확정 사례 대조, 근거' },
+  { k: '재발 판정', d: '조치 이후 생산 여부' },
+  { k: '회신 초안·처리방안', d: '고객 안내 문구, 처리 제안' },
+]
 
-// 접수 뒤 처리 순서 (업무 흐름도: 저장 → 자동 분류 → 품질 분석·원인 확정 → 고객 처리 결정)
-const afterSteps = computed(() => [
-  { title: 'RMA 저장', desc: "상태 '분석 대기', 심각도 '판정 보류'" },
-  { title: '소분류 자동 분류', desc: `상세 설명으로 분류해 함께 저장합니다` },
-  { title: '품질팀 분석', desc: '검사와 이력을 바탕으로 원인을 확정합니다' },
-  { title: '고객 처리 결정 및 안내', desc: '분석 결과를 받아 교체나 선별 지원 등 처리를 정하고 고객에게 안내합니다' },
-])
-
-const statusTone = (s) => (s === '분류 완료' ? 'green' : s === '정보 부족' || s === '미분류' ? 'gray' : 'yellow')
-const plain = (s) => s.replaceAll('·', '/') // 화면 표시용 구분 기호
 const field = 'grid gap-1.5'
 const labelCls = 'text-[13px] font-semibold text-[#3b404a]'
 const hintCls = 'text-xs text-muted-foreground'
 const errCls = 'text-xs text-destructive'
 const reqCls = 'ml-0.5 text-sk-orange'
+const optCls = 'font-normal text-muted-foreground'
 </script>
 
 <template>
-  <PageHead :crumb="false" title="반품 접수" description="고객의 반품 및 불량 내용을 등록하면 품질팀에 바로 전달되고, 소분류는 자동 분류됩니다." />
+  <PageHead :crumb="false" title="반품 접수" description="DB에 꼭 필요한 정보는 폼으로, 고객이 보낸 내용은 원문 파일로 받습니다. 접수하면 분류부터 원인분석까지 자동으로 진행됩니다." />
 
-  <!-- 접수 완료 -->
-  <Card v-if="done" class="mx-auto max-w-[640px]">
-    <div class="flex flex-col items-center py-6 text-center">
-      <CheckCircle2 class="size-10 text-emerald-600" />
-      <h2 class="mt-3 text-[20px] font-bold tracking-tight">{{ done.rma_id }} 접수 완료</h2>
-      <p class="mt-1 text-sm text-muted-foreground">{{ done.customer_name }}, {{ done.product }}, {{ done.claim_qty }}개<template v-if="done.serials">, 패널 {{ done.serials }}개</template></p>
-      <dl class="mt-5 grid w-full max-w-[440px] grid-cols-[96px_1fr] gap-y-2.5 rounded-lg bg-muted/50 px-4 py-3 text-left text-sm">
-        <dt class="text-muted-foreground">불량 유형</dt>
-        <dd class="font-medium">{{ plain(done.major) }}<template v-if="done.subtype">&nbsp;<span class="text-[#c4c8cf]">/</span> {{ plain(done.subtype) }}</template></dd>
-        <dt class="text-muted-foreground">자동 분류</dt>
-        <dd class="grid gap-1.5">
-          <div class="flex flex-wrap items-center gap-1.5">
-            <Badge :tone="statusTone(done.status)">{{ done.status }}</Badge>
-            <span v-for="w in done.evidence" :key="w" class="rounded bg-card px-1.5 py-0.5 text-xs font-medium">{{ w }}</span>
-          </div>
-          <p v-if="!done.subtype && done.candidates.length" class="text-xs">후보: {{ done.candidates.map(plain).join(', ') }}</p>
-          <p v-if="done.reason" class="text-xs text-muted-foreground">{{ done.reason }}</p>
-        </dd>
-        <dt class="text-muted-foreground">처리 상태</dt><dd>분석 대기 <span class="text-xs text-muted-foreground">(심각도 판정 보류)</span></dd>
-      </dl>
-      <div class="mt-6 flex gap-2">
-        <Button variant="outline" @click="again"><RotateCcw class="size-4" />새로 접수</Button>
-        <Button @click="router.push({ path: '/rmas', query: { open: done.rma_id } })">RMA 조회에서 보기</Button>
-      </div>
-    </div>
-  </Card>
-
-  <div v-else-if="!opts" class="grid grid-cols-12 gap-4">
-    <Skeleton class="col-span-12 h-[560px] rounded-[14px] lg:col-span-8" />
-    <Skeleton class="col-span-12 h-[260px] rounded-[14px] lg:col-span-4" />
+  <div v-if="!meta" class="grid grid-cols-12 gap-4">
+    <Skeleton class="col-span-12 h-[620px] rounded-[14px] lg:col-span-8" />
+    <Skeleton class="col-span-12 h-[420px] rounded-[14px] lg:col-span-4" />
   </div>
 
   <form v-else class="grid grid-cols-12 items-start gap-4" novalidate @submit.prevent="submit">
     <Card class="col-span-12 lg:col-span-8" :padded="false">
-      <!-- 고객·제품 -->
       <fieldset class="border-b px-6 pb-6 pt-5">
         <legend class="sr-only">고객 및 제품</legend>
         <h2 class="mb-4 text-[15px] font-bold">고객 및 제품</h2>
         <div class="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
           <div :class="field">
             <label :class="labelCls" for="f-customer">고객사<span :class="reqCls" title="필수 입력">*</span></label>
-            <Select id="f-customer" v-model="form.customer_name" placeholder="선택" :options="opts.customers" class="w-full" />
-            <p v-if="err('customer_name')" :class="errCls">{{ err('customer_name') }}</p>
+            <Select id="f-customer" v-model="form.customer_id" placeholder="선택" :options="customerOptions" class="w-full" />
+            <p v-if="err('customer_id')" :class="errCls">{{ err('customer_id') }}</p>
           </div>
           <div :class="field">
-            <label :class="labelCls" for="f-channel">접수 채널<span :class="reqCls" title="필수 입력">*</span></label>
-            <Select id="f-channel" v-model="form.claim_channel" placeholder="고객사를 고르면 자동 선택" :options="opts.channels" class="w-full" />
-            <p v-if="err('claim_channel')" :class="errCls">{{ err('claim_channel') }}</p>
+            <label :class="labelCls" for="f-part">제품 P/N<span :class="reqCls" title="필수 입력">*</span></label>
+            <Select id="f-part" v-model="form.reported_part_no" placeholder="선택" :options="productOptions" class="w-full" />
+            <p v-if="err('reported_part_no')" :class="errCls">{{ err('reported_part_no') }}</p>
           </div>
-          <div :class="field">
-            <label :class="labelCls" for="f-product">제품<span :class="reqCls" title="필수 입력">*</span></label>
-            <Select id="f-product" v-model="form.product" placeholder="선택" :options="productOptions" class="w-full" />
-            <p v-if="err('product')" :class="errCls">{{ err('product') }}</p>
-          </div>
-          <div :class="field">
-            <label :class="labelCls" for="f-qty">클레임 수량<span :class="reqCls" title="필수 입력">*</span></label>
-            <div class="relative w-[140px]">
-              <Input id="f-qty" v-model="form.claim_qty" type="number" min="1" max="10000" inputmode="numeric" class="pr-8 tabular" :invalid="!!err('claim_qty')" />
-              <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">개</span>
-            </div>
-            <p v-if="err('claim_qty')" :class="errCls">{{ err('claim_qty') }}</p>
-          </div>
-          <div :class="field" class="sm:col-span-2">
-            <div class="flex items-end justify-between">
-              <label :class="labelCls" for="f-serial">패널 식별자 <span class="font-normal text-muted-foreground">(선택, PCB 패널 라벨)</span></label>
-              <span :class="serialOver ? 'text-destructive' : 'text-muted-foreground'" class="text-xs tabular">{{ serials.length }}개 입력 / 수량 {{ Number(form.claim_qty) || 0 }}개</span>
-            </div>
-            <textarea
-              id="f-serial" v-model="form.serial_text" rows="2" spellcheck="false" autocomplete="off"
-              placeholder="예: SN-0002-01, SN-0002-02 (여러 개는 쉼표나 줄바꿈으로 구분)"
-              :class="err('serials') ? 'border-destructive' : ''"
-              class="w-full resize-y rounded-md border bg-card px-3 py-2 font-mono text-[13px] leading-relaxed shadow-xs placeholder:font-sans placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            />
-            <p v-if="err('serials')" :class="errCls">{{ err('serials') }}</p>
-            <p v-else :class="hintCls">패널 식별자는 품질팀이 생산 이력을 대조할 때 사용합니다. 모르면 비워 두세요.</p>
-          </div>
-        </div>
-      </fieldset>
-
-      <!-- 불량 내용 -->
-      <fieldset class="border-b px-6 pb-6 pt-5">
-        <legend class="sr-only">불량 내용</legend>
-        <h2 class="mb-4 text-[15px] font-bold">불량 내용</h2>
-        <div :class="field">
-          <span :class="labelCls" id="l-major">불량 대분류<span :class="reqCls" title="필수 입력">*</span></span>
-          <div role="radiogroup" aria-labelledby="l-major" class="flex flex-wrap gap-1.5">
-            <label
-              v-for="t in opts.taxonomy" :key="t.major"
-              :class="form.major === t.major ? 'border-primary bg-brand-soft text-primary' : 'bg-card text-[#4a505c] hover:border-[#c9ced6]'"
-              class="cursor-pointer rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
-            >
-              <input v-model="form.major" type="radio" name="major" :value="t.major" class="sr-only" />{{ plain(t.major) }}
-            </label>
-          </div>
-          <p v-if="err('major')" :class="errCls">{{ err('major') }}</p>
-          <p v-else-if="form.major === ETC" :class="hintCls">목록에 없는 불량은 아래 상세 설명에 내용을 적어 주세요.</p>
-        </div>
-
-        <div :class="field" class="mt-5">
-          <div class="flex items-end justify-between">
-            <label :class="labelCls" for="f-detail">상세 설명<span :class="reqCls" title="필수 입력">*</span></label>
-            <span :class="detailLen > DETAIL_MAX ? 'text-destructive' : 'text-muted-foreground'" class="text-xs tabular">{{ detailLen }} / {{ DETAIL_MAX }}</span>
-          </div>
-          <textarea
-            id="f-detail" v-model="form.detail" rows="6" :maxlength="DETAIL_MAX"
-            :placeholder="DETAIL_PLACEHOLDER"
-            :class="err('detail') ? 'border-destructive' : ''"
-            class="w-full resize-y rounded-md border bg-card px-3 py-2.5 text-sm leading-relaxed shadow-xs placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          />
-          <p v-if="err('detail')" :class="errCls">{{ err('detail') }}</p>
-          <p v-else :class="hintCls">{{ form.major === ETC ? "'기타'는 소분류 없이 저장되고, 품질팀이 상세 설명을 보고 판단합니다." : '접수하면 상세 설명으로 소분류(관찰된 상황)가 자동 분류되어 품질팀에 함께 전달됩니다.' }}</p>
-        </div>
-      </fieldset>
-
-      <!-- 접수 정보 -->
-      <fieldset class="px-6 pb-6 pt-5">
-        <legend class="sr-only">접수 정보</legend>
-        <h2 class="mb-4 text-[15px] font-bold">접수 정보</h2>
-        <div class="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-3">
           <div :class="field">
             <label :class="labelCls" for="f-occ">발생일<span :class="reqCls" title="필수 입력">*</span></label>
-            <Input id="f-occ" v-model="form.occurrence_date" type="date" :max="today" class="tabular" :invalid="!!err('occurrence_date')" />
-            <p v-if="err('occurrence_date')" :class="errCls">{{ err('occurrence_date') }}</p>
+            <Input id="f-occ" v-model="form.occurred_at" type="date" :max="today" class="tabular" :invalid="!!err('occurred_at')" />
+            <p v-if="err('occurred_at')" :class="errCls">{{ err('occurred_at') }}</p>
           </div>
           <div :class="field">
             <label :class="labelCls" for="f-stage">발견 단계<span :class="reqCls" title="필수 입력">*</span></label>
-            <Select id="f-stage" v-model="form.detection_stage" :options="opts.stages" class="w-full" />
+            <Select id="f-stage" v-model="form.detection_stage" placeholder="선택" :options="stageOptions" class="w-full" />
+            <p v-if="err('detection_stage')" :class="errCls">{{ err('detection_stage') }}</p>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="border-b px-6 pb-6 pt-5">
+        <legend class="sr-only">수량 및 추적 정보</legend>
+        <h2 class="mb-4 text-[15px] font-bold">수량 및 추적 정보</h2>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+          <div :class="field">
+            <label :class="labelCls" for="f-defect">신고 불량 수량<span :class="reqCls" title="필수 입력">*</span></label>
+            <Input id="f-defect" v-model="form.claimed_defect_qty" type="number" min="1" inputmode="numeric" class="tabular" :invalid="!!err('claimed_defect_qty')" />
+            <p v-if="err('claimed_defect_qty')" :class="errCls">{{ err('claimed_defect_qty') }}</p>
           </div>
           <div :class="field">
-            <span :class="labelCls" id="l-req">고객 요청 <span class="font-normal text-muted-foreground">(선택)</span></span>
+            <label :class="labelCls" for="f-input">투입 수량<span :class="reqCls" title="필수 입력">*</span></label>
+            <Input id="f-input" v-model="form.input_qty" type="number" min="1" inputmode="numeric" class="tabular" :invalid="!!err('input_qty')" />
+            <p v-if="err('input_qty')" :class="errCls">{{ err('input_qty') }}</p>
+          </div>
+          <div :class="field">
+            <label :class="labelCls" for="f-lot">Lot 번호 <span :class="optCls">(선택)</span></label>
+            <Input id="f-lot" v-model="form.reported_lot_no" placeholder="예: LT-01603" spellcheck="false" autocomplete="off" />
+          </div>
+          <div :class="field">
+            <label :class="labelCls" for="f-dc">D/C <span :class="optCls">(선택)</span></label>
+            <Input id="f-dc" v-model="form.reported_date_code" placeholder="예: 2543" inputmode="numeric" class="tabular" />
+          </div>
+          <div :class="field" class="col-span-2">
+            <label :class="labelCls" for="f-panel">패널 식별자 <span :class="optCls">(선택)</span></label>
+            <Input id="f-panel" v-model="form.panel_id" spellcheck="false" autocomplete="off" />
+          </div>
+          <div :class="field" class="col-span-2">
+            <span :class="labelCls" id="l-req">고객 요청 <span :class="optCls">(선택)</span></span>
             <div role="radiogroup" aria-labelledby="l-req" class="flex h-9 rounded-md border bg-card p-0.5">
               <label
-                v-for="o in ['', ...opts.requests]" :key="o || 'none'"
+                v-for="o in ['', ...meta.customer_requests]" :key="o || 'none'"
                 :class="form.customer_request === o ? 'bg-primary text-primary-foreground' : 'text-[#4a505c] hover:bg-muted'"
-                class="flex flex-1 cursor-pointer items-center justify-center rounded text-[13px] font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
+                class="flex flex-1 cursor-pointer items-center justify-center rounded px-1 text-[12px] font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
               >
                 <input v-model="form.customer_request" type="radio" name="request" :value="o" class="sr-only" />{{ o || '미정' }}
               </label>
             </div>
           </div>
         </div>
-        <p :class="hintCls" class="mt-3">접수일은 시연 기준일({{ today }})로 기록됩니다.</p>
+        <p :class="hintCls" class="mt-3">Lot을 적으면 생산 기록과 대조합니다. 맞는 Lot이어야 에이전트가 공정·검사 이력을 따라갈 수 있습니다.</p>
+      </fieldset>
+
+      <fieldset class="px-6 pb-6 pt-5">
+        <legend class="sr-only">고객 원문</legend>
+        <div class="mb-1 flex items-end justify-between">
+          <h2 class="text-[15px] font-bold">고객 원문<span :class="reqCls" title="필수 입력">*</span></h2>
+          <span :class="hintCls">.eml · .txt · .pdf, 20MB 이하</span>
+        </div>
+        <p :class="hintCls" class="mb-3">고객이 보낸 메일·통보문 파일을 그대로 올립니다. 요약해서 옮겨 적지 않습니다. 증상 분류의 근거가 됩니다.</p>
+
+        <label
+          v-if="!rawFile"
+          :class="[dragging ? 'border-primary bg-brand-soft' : 'hover:border-[#c9ced6]', err('raw_file') ? 'border-destructive' : '']"
+          class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-9 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
+          @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop"
+        >
+          <Upload class="size-6 text-muted-foreground" />
+          <span class="text-sm font-semibold">원문 파일을 끌어다 놓거나 눌러서 고르세요</span>
+          <span :class="hintCls">고객 메일(.eml) 권장</span>
+          <input type="file" accept=".eml,.txt,.pdf" class="sr-only" @change="setRaw($event.target.files[0])" />
+        </label>
+        <div v-else class="rounded-lg border bg-muted/40">
+          <div class="flex items-center gap-2 border-b px-3 py-2.5">
+            <FileText class="size-4 shrink-0 text-muted-foreground" />
+            <span class="truncate text-sm font-semibold">{{ rawFile.name }}</span>
+            <span class="shrink-0 text-xs text-muted-foreground tabular">{{ kb(rawFile.size) }}</span>
+            <button type="button" class="ml-auto grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-card hover:text-foreground" aria-label="원문 파일 빼기" @click="rawFile = null; rawPreview = ''"><X class="size-4" /></button>
+          </div>
+          <p v-if="rawPreview" class="max-h-44 overflow-y-auto whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed">{{ rawPreview }}</p>
+          <p v-else class="px-4 py-3 text-xs text-muted-foreground">PDF는 서버가 텍스트를 추출합니다.</p>
+        </div>
+        <p v-if="err('raw_file')" :class="errCls" class="mt-1.5">{{ err('raw_file') }}</p>
+
+        <div class="mt-5 flex items-center justify-between">
+          <span :class="labelCls">기타 첨부 <span :class="optCls">(선택, 사진·고객 시험 결과 등 최대 10개)</span></span>
+          <label class="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border bg-card px-3 text-xs font-semibold hover:bg-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50">
+            <Paperclip class="size-3.5" />파일 추가
+            <input type="file" multiple class="sr-only" @change="addOthers($event.target.files); $event.target.value = ''" />
+          </label>
+        </div>
+        <ul v-if="others.length" class="mt-2 flex flex-wrap gap-2">
+          <li v-for="(f, i) in others" :key="f.name + i" class="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5 text-xs">
+            <span class="max-w-[220px] truncate font-medium">{{ f.name }}</span>
+            <span class="text-muted-foreground tabular">{{ kb(f.size) }}</span>
+            <button type="button" class="text-muted-foreground hover:text-foreground" :aria-label="`${f.name} 빼기`" @click="others.splice(i, 1)"><X class="size-3.5" /></button>
+          </li>
+        </ul>
       </fieldset>
     </Card>
 
-    <!-- 접수 후 처리 안내 + 접수 -->
     <aside class="col-span-12 grid gap-4 lg:sticky lg:top-[84px] lg:col-span-4">
-      <Card title="접수 후 처리">
-        <ol class="grid gap-3 text-sm">
-          <li v-for="(step, i) in afterSteps" :key="step.title" class="flex gap-2.5">
-            <span class="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-bold">{{ i + 1 }}</span>
-            <span><b class="font-semibold">{{ step.title }}</b><span class="block text-xs text-muted-foreground">{{ step.desc }}</span></span>
+      <Card title="접수하면 에이전트가 만드는 것" description="결과는 케이스 화면에서 단계별로 확인합니다">
+        <ol class="grid gap-2.5 text-sm">
+          <li v-for="o in OUTPUTS" :key="o.k" class="flex items-start gap-2.5">
+            <ArrowRight class="mt-0.5 size-4 shrink-0 text-primary" />
+            <span><b class="font-semibold">{{ o.k }}</b><span class="block text-xs text-muted-foreground">{{ o.d }}</span></span>
           </li>
         </ol>
       </Card>
 
       <div class="rounded-[14px] border bg-card p-5">
-        <Button type="submit" class="h-11 w-full text-[15px]" :loading="saving" :disabled="saving"><Send class="size-4" />접수하기</Button>
-        <p class="mt-2.5 text-center text-xs text-muted-foreground">자동 분류가 실패해도 접수는 저장되고, 소분류는 '분류 대기'로 남습니다.</p>
+        <p v-if="serverError" role="alert" class="mb-3 rounded-md bg-[#fff0f3] px-3 py-2 text-sm text-[#b4122f]">{{ serverError }}</p>
+        <Button type="submit" class="h-11 w-full text-[15px]" :loading="saving" :disabled="saving"><Send class="size-4" />접수하고 분석 시작</Button>
+        <p class="mt-2.5 text-center text-xs text-muted-foreground">분석이 실패해도 접수는 저장됩니다.</p>
+        <p v-if="MOCK" class="mt-1 text-center text-xs text-sk-orange">목업 모드: 원문에 "정보 부족" 또는 "임시 판정"을 넣으면 예외 흐름을 볼 수 있습니다.</p>
       </div>
     </aside>
   </form>

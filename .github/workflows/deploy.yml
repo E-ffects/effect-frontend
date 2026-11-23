@@ -38,10 +38,15 @@ jobs:
         id: ecr
 
       # 태그는 IMMUTABLE이라 서비스명-커밋해시로만 쓴다. 노드가 amd64라 플랫폼을 고정한다.
+      # 같은 커밋을 다시 실행하면 이미 올린 이미지를 그대로 쓴다.
       - name: Build & push
         run: |
           IMAGE=${{ steps.ecr.outputs.registry }}/${ECR_REPO}:frontend-${GITHUB_SHA}
-          docker buildx build --platform linux/amd64 --push -t "$IMAGE" .
+          if docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "이미 있는 이미지라 빌드를 건너뜀: $IMAGE"
+          else
+            docker buildx build --platform linux/amd64 --push -t "$IMAGE" .
+          fi
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v4

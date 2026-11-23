@@ -1,4 +1,4 @@
-// Spring 연결 전 화면 개발용 목업 (Spring_API_v5 기준).
+// Spring 연결 전 화면 개발용 목업 (Spring_API_v6 기준).
 // VITE_API_MOCK=1 일 때만 쓰인다. 데이터는 PCB v5와 effect-ai samples(실제 에이전트 출력)에서 가져왔다.
 import meta from './data/meta.json'
 import lots from './data/lots.json'
@@ -450,6 +450,15 @@ const routes = [
   ['POST', /^\/ai\/toggle$/, (_, b) => { db.aiDown = !b.available; save(); return { available: !db.aiDown } }],
   ['GET', /^\/rmas$/, (_, __, q) => rmaList(q)],
   ['GET', /^\/dashboard\/cs$/, (_, __, q) => csDashboard(q)],
+  ['GET', /^\/rmas\/([^/]+)\/similar$/, (m) => {
+    // Spring CS 응답 모양 (원인·설비 없이 접수일·증상·유사도·처리 소요)
+    claimOf(m[1]); const r = db.analyses[m[1]]?.result
+    const items = (r?.similar_cases || []).map((x) => ({
+      rma_id: x.rma_id, opened_at: x.opened_at || x.claim_date, claim_date: x.claim_date, minor_code: x.minor_code,
+      minor_name: x.minor_name, similarity: x.similarity, days_to_resolve: x.days_to_resolve,
+    }))
+    return { rma_id: m[1], as_of: NOW, items }
+  }],
   ['GET', /^\/rmas\/export$/, (_, __, q) => rmaCsv(q)],
   ['GET', /^\/alerts$/, () => ({ items: [], unread: 0, unread_by_type: {}, max_id: 0, starred_count: 0 })],
   ['GET', /^\/meta$/, () => meta],

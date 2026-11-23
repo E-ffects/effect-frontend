@@ -7,7 +7,7 @@ import NotificationBell from './NotificationBell.vue'
 import AgentPanel from './AgentPanel.vue'
 import { api, MOCK, referenceDate } from '@/lib/api'
 import { useMeta } from '@/lib/meta'
-import { agentPanel, aiState, auth, clearSession, setAgentPanelOpen } from '@/lib/state'
+import { agentPanel, aiState, auth, clearSession, NOT_READY, setAgentPanelOpen } from '@/lib/state'
 
 const router = useRouter()
 useMeta()
@@ -15,7 +15,7 @@ const isQuality = computed(() => auth.user?.role === 'QUALITY')
 const initials = computed(() => (auth.user?.name || '').slice(-2))
 
 const menus = computed(() =>
-  isQuality.value
+  (isQuality.value
     ? [
         { to: '/quality/dashboard', label: '대시보드' },
         { to: '/rmas', label: 'RMA 조회' },
@@ -28,10 +28,11 @@ const menus = computed(() =>
         { to: '/cs/dashboard', label: '대시보드' },
         { to: '/rmas', label: 'RMA 조회' },
         { to: '/cs/intake', label: '반품 접수' },
-      ],
+      ]).filter((m) => !NOT_READY.has(m.to)),
 )
 
 async function checkAi() {
+  if (!auth.token) return
   try {
     const health = await api('/ai/health')
     // Spring GET /api/ai/health: {available, provider, status, db, llm}
@@ -90,6 +91,7 @@ function logout() {
             <span v-if="aiState.available && aiState.provider" class="text-muted-foreground/70">{{ aiState.provider }}</span>
           </component>
           <button
+            v-if="!NOT_READY.has('chat')"
             :aria-pressed="agentPanel.open"
             :class="agentPanel.open ? 'border-brand-line bg-brand-soft text-primary' : 'text-[#4a505c] hover:bg-muted'"
             class="flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[13px] font-semibold"
@@ -97,7 +99,7 @@ function logout() {
           >
             <PanelRight class="size-4" />에이전트
           </button>
-          <NotificationBell v-if="isQuality" />
+          <NotificationBell v-if="isQuality && !NOT_READY.has('alerts')" />
           <span class="flex items-center gap-2 text-sm">
             <span class="grid size-8 place-items-center rounded-full bg-muted text-[12px] font-bold">{{ initials }}</span>
             <span class="leading-tight"><b class="block text-[14px] font-semibold">{{ auth.user?.name }}</b><span class="text-[12px] text-muted-foreground">{{ auth.user?.role_label }}</span></span>
@@ -120,10 +122,10 @@ function logout() {
         </main>
         <footer class="mx-auto flex max-w-[1480px] justify-between px-6 pb-8 text-[12px] text-[#6f7684]">
           <span>© 2026 E!ffect. RMA Intelligence Workspace.</span>
-          <span>PCB RMA v4 · 기준일 {{ referenceDate }}</span>
+          <span>PCB RMA v5 · 기준일 {{ referenceDate }}</span>
         </footer>
       </div>
-      <AgentPanel />
+      <AgentPanel v-if="!NOT_READY.has('chat')" />
     </div>
   </div>
 </template>

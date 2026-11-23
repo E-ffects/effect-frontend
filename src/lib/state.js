@@ -34,8 +34,13 @@ export function clearSession() {
   agentPanel.thread = [] // 다른 역할로 로그인했을 때 이전 역할의 결과가 남지 않게
 }
 
+// Spring API가 아직 없는 화면(품질 대시보드·패턴·재발·보고서·알림·에이전트 대화)은 메뉴에서 숨긴다.
+// 백엔드가 생기면 해당 이름을 여기서 빼면 다시 나타난다
+export const NOT_READY = new Set(['/quality/dashboard', '/quality/patterns', '/quality/recurrence', '/quality/reports', 'alerts', 'chat'])
+
 export function homePath(user = auth.user) {
-  return user?.role === 'CS' ? '/cs/dashboard' : '/quality/dashboard'
+  if (user?.role === 'CS') return '/cs/dashboard'
+  return NOT_READY.has('/quality/dashboard') ? '/quality/approvals' : '/quality/dashboard'
 }
 
 // AI 서비스 상태 (NFR-02-3) — 503 응답이나 health 체크로 갱신

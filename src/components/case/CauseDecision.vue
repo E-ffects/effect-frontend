@@ -7,7 +7,7 @@ import { api } from '@/lib/api'
 import { toast } from '@/lib/state'
 import { APPROVAL, LEVEL_TONE, pick } from '@/lib/caseLabels'
 
-// 원인 판정 (Spring_API_v5 6-1): 후보마다 채택·기각 + 건 전체 승인·반려(L3) / 확인(L1·L2)
+// 원인 판정 (Spring_API_v6 6-1): 후보마다 채택·기각 + 건 전체 승인·반려(L3) / 확인(L1·L2)
 const props = defineProps({ rmaId: String, analysis: Object, level: String, approvalStatus: String })
 const emit = defineEmits(['decided'])
 

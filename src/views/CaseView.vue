@@ -10,6 +10,7 @@ import CaseInput from '@/components/case/CaseInput.vue'
 import CaseOutput from '@/components/case/CaseOutput.vue'
 import CauseDecision from '@/components/case/CauseDecision.vue'
 import CsReply from '@/components/case/CsReply.vue'
+import CsSimilar from '@/components/case/CsSimilar.vue'
 import { api, MOCK } from '@/lib/api'
 import { auth, toast } from '@/lib/state'
 import { ANALYSIS_STATE, APPROVAL, CS_STATUS, INTAKE_STATE, LEVEL_TONE, pick } from '@/lib/caseLabels'
@@ -157,7 +158,11 @@ const csResult = computed(() => analysis.value?.result)
         <Button size="sm" :loading="retrying" @click="retryIntake"><RefreshCw class="size-3.5" />다시 처리</Button>
       </div>
       <p v-else-if="rma.intake_state === 'TRIAGE_REVIEW'" class="text-sm text-muted-foreground">QA 임시 판정을 품질관리자가 확인하면 원인분석이 시작됩니다.</p>
-      <p v-else class="text-sm text-muted-foreground">분석이 아직 시작되지 않았습니다.</p>
+      <!-- 기존 사례(v5 원본)는 분석 이력이 없다. QA 판정이 있으면 품질관리자가 바로 분석을 돌릴 수 있다 (POST .../analysis) -->
+      <div v-else class="flex flex-wrap items-center gap-3">
+        <p class="text-sm text-muted-foreground">이 건은 아직 에이전트 분석을 하지 않았습니다.<template v-if="!quality"> 품질관리자가 분석을 실행하면 결과가 보입니다.</template></p>
+        <Button v-if="quality && rma.triage" size="sm" :loading="reanalyzing" @click="reanalyze"><RefreshCw class="size-3.5" />에이전트 분석 실행</Button>
+      </div>
       <p v-if="analysis?.analysis_state === 'PARTIAL'" class="mt-3 flex items-center gap-1.5 text-xs text-[#a8711a]"><AlertTriangle class="size-3.5" />문장 생성이 일부 빠졌습니다. 원인 순위와 근거는 정상입니다.</p>
       <p v-if="analysis?.analysis_state === 'FAILED'" class="mt-3 text-xs text-destructive">분석에 실패했습니다: {{ analysis.error?.detail || '잠시 후 다시 시도하세요' }}</p>
     </section>
@@ -194,6 +199,7 @@ const csResult = computed(() => analysis.value?.result)
               </dl>
             </section>
             <CsReply :rma="rma" :analysis="analysis" @changed="refresh" />
+            <CsSimilar v-if="finished" :rma-id="rma.rma_id" />
           </div>
           <p v-else class="rounded-[14px] border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">분석이 끝나면 고객 회신 초안과 처리방안 제안이 여기에 나옵니다.</p>
         </template>

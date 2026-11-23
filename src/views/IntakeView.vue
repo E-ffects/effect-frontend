@@ -11,7 +11,7 @@ import PageHead from '@/components/PageHead.vue'
 import { api, MOCK } from '@/lib/api'
 import { reportLoadError, toast } from '@/lib/state'
 
-// CS 반품 접수 (Spring_API_v5 4-2): DB 필수 정보는 폼, 고객이 보낸 내용은 원문 파일로 첨부한다.
+// CS 반품 접수 (Spring_API_v6 4-2): DB 필수 정보는 폼, 고객이 보낸 내용은 원문 파일로 첨부한다.
 // 접수하면 서버가 분류 → QA 판정 → 원인분석까지 자동으로 진행하고, 케이스 화면에서 결과를 본다.
 const router = useRouter()
 const meta = ref(null)

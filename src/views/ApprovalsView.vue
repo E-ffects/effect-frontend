@@ -9,7 +9,7 @@ import { api, fmtDateTime } from '@/lib/api'
 import { reportLoadError } from '@/lib/state'
 import { LEVEL_TONE } from '@/lib/caseLabels'
 
-// 품질관리자가 손대야 할 건 모음 (Spring_API_v5)
+// 품질관리자가 손대야 할 건 모음 (Spring_API_v6)
 // - L3 판정 대기 / 승인 / 반려: GET /api/approvals?status=
 // - L1·L2 확인 대기 / 확인 완료: GET /api/approvals?status=&level=L1_L2
 // - 임시 판정 확인: GET /api/triage-reviews (QA 판정안이 임시라 사람이 확인해야 원인분석이 시작되는 건)

@@ -8,7 +8,7 @@ import { api, fmtDateTime } from '@/lib/api'
 import { toast } from '@/lib/state'
 import { ACTION_TYPE, CS_STATUS, pick } from '@/lib/caseLabels'
 
-// 고객대응관리자 OUTPUT (Spring_API_v5 4-7): 회신 초안 수정 → 회신 기록, 처리방안 → 처리 실행
+// 고객대응관리자 OUTPUT (Spring_API_v6 4-7): 회신 초안 수정 → 회신 기록, 처리방안 → 처리 실행
 const props = defineProps({ rma: Object, analysis: Object })
 const emit = defineEmits(['changed'])
 

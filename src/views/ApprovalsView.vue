@@ -87,7 +87,8 @@ function pickTab(k) {
             <p class="text-xs text-muted-foreground tabular">{{ fmtDateTime(it.requested_at) }}</p>
           </div>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm">{{ it.customer_name }} · {{ it.reported_part_no }}<template v-if="it.minor_name"> · {{ it.minor_name }}</template></p>
+            <!-- Spring_API_v6 승인 목록에는 고객사·제품이 없다. 오면 보여 준다 -->
+            <p v-if="it.customer_name || it.reported_part_no" class="truncate text-sm">{{ [it.customer_name, it.reported_part_no, it.minor_name].filter(Boolean).join(' · ') }}</p>
             <p class="mt-0.5 text-sm">1순위 <b class="font-semibold">{{ it.top_cause_name || '—' }}</b></p>
           </div>
           <div class="hidden flex-wrap justify-end gap-1 md:flex">

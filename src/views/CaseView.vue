@@ -30,7 +30,18 @@ const running = computed(() => ['QUEUED', 'RUNNING'].includes(analysis.value?.an
 const finished = computed(() => ['SUCCEEDED', 'PARTIAL'].includes(analysis.value?.analysis_state))
 
 async function loadDetail() {
-  rma.value = await api(`/rmas/${rmaId.value}`)
+  const d = await api(`/rmas/${rmaId.value}`)
+  // 임시 QA 판정(TRIAGE_REVIEW): 상세 응답에 판정안(triage_proposal)이 없으면 임시 판정 목록에서 가져온다
+  if (quality.value && d.intake_state === 'TRIAGE_REVIEW' && !d.triage && !d.triage_proposal) {
+    try {
+      const list = await api('/triage-reviews', { query: { page: 1, size: 100 } })
+      const p = list.items.find((x) => x.rma_id === d.rma_id)?.proposal
+      if (p) d.triage_proposal = { ...p, provisional: true, decided_by: 'QA_AGENT' }
+    } catch {
+      /* 목록을 못 가져와도 상세는 보여 준다 */
+    }
+  }
+  rma.value = d
 }
 async function loadAnalysis() {
   const before = analysis.value?.analysis_state

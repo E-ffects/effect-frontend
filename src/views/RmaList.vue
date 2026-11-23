@@ -1,41 +1,49 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronRight as Caret, Download, RotateCcw, Search, X } from 'lucide-vue-next'
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, RotateCcw, Search, X } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import DateRange from '@/components/ui/DateRange.vue'
 import Select from '@/components/ui/Select.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHead from '@/components/PageHead.vue'
-import RmaDetailCs from '@/components/rma/RmaDetailCs.vue'
-import RmaDetailQuality from '@/components/rma/RmaDetailQuality.vue'
 import { api, fmtDate, saveFile } from '@/lib/api'
-import { recurrenceTone, SEVERITY_TONE, STATUS_TONE } from '@/lib/badges'
 import { useMeta } from '@/lib/meta'
-import { auth, chatContext, toast } from '@/lib/state'
+import { auth, toast } from '@/lib/state'
+import { CS_STATUS, LEVEL_TONE, pick, RECURRENCE } from '@/lib/caseLabels'
 
+// RMA 목록 (Spring GET /api/rmas). 필터·정렬 값은 API 값 그대로 보낸다
+// - product: 품번(part_no), status: cs_status(OPEN 등), defectType: 대분류 이름(major_name)
+// - 심각도·재발 필터와 심각도 정렬은 QUALITY만 (CS가 보내면 Spring이 400)
 const route = useRoute()
 const router = useRouter()
 const meta = useMeta()
+const quality = computed(() => auth.user?.role === 'QUALITY')
 
-const FILTER_KEYS = ['q', 'product', 'defectType', 'classification', 'status', 'severity', 'channel', 'recurrence', 'from', 'to', 'overDays']
-const LABELS = { q: '검색어', product: '제품', defectType: '불량 유형', classification: '분류 상태', status: '처리 상태', severity: '심각도', channel: '접수 채널', recurrence: '재발 여부', from: '접수 시작', to: '접수 종료', overDays: '경과일' }
-const CLASSIFICATION = ['분류 완료', '복합 증상', '정보 부족', '검토 필요', '미분류']
-const RECURRENCE = [
-  { value: 'suspected', label: '재발 의심' },
-  { value: 'confirmed', label: '재발 확정' },
-  { value: 'none', label: '없음' },
-]
+const QUALITY_ONLY = ['severity', 'recurrence']
+const ALL_KEYS = ['q', 'product', 'defectType', 'classification', 'status', 'severity', 'recurrence', 'from', 'to', 'overDays']
+const FILTER_KEYS = computed(() => (quality.value ? ALL_KEYS : ALL_KEYS.filter((k) => !QUALITY_ONLY.includes(k))))
+const LABELS = { q: '검색어', product: '제품', defectType: '불량 유형', classification: '분류 상태', status: '처리 상태', severity: '심각도', recurrence: '재발 판정', from: '접수 시작', to: '접수 종료', overDays: '경과일' }
+const MAJORS = ['전기적 불량', '납땜·실장 불량', '구조·적층 불량', '외관 불량', '치수·가공 불량', '식별·추적 불량', '미확정']
+const CLASSIFICATION = {
+  CLASSIFIED: { label: '분류 완료', tone: 'blue' },
+  INSUFFICIENT_INFO: { label: '정보 부족', tone: 'gray' },
+  UNCLASSIFIED: { label: '미분류', tone: 'gray' },
+  SYNTHETIC_REFERENCE: { label: '기존 사례', tone: 'outline' },
+}
+const toOptions = (map) => Object.entries(map).map(([value, v]) => ({ value, label: v.label }))
+const SEVERITIES = Array.from({ length: 10 }, (_, i) => String(9 - i))
+const severityTone = (n) => (n >= 9 ? 'red' : n >= 8 ? 'orange' : n >= 6 ? 'blue' : 'gray')
+const stageLabel = (code) => meta.value?.detection_stages?.find((s) => s.code === code)?.label || code
 
 const draft = ref({})
 const data = ref(null)
 const loading = ref(false)
 const failed = ref(false)
-const openId = computed(() => route.query.open || null)
 const size = computed(() => Number(route.query.size) || 30)
-// 다중 정렬 (URL sort=claim_date:desc,product:asc · 앞쪽이 우선). 지정이 없으면 접수일 최신순
-const DEFAULT_SORT = [{ key: 'claim_date', dir: 'desc' }]
+// 다중 정렬 (URL sort=opened_at:desc,reported_part_no:asc · 앞쪽이 우선). 지정이 없으면 접수일 최신순
+const DEFAULT_SORT = [{ key: 'opened_at', dir: 'desc' }]
 const sorts = computed(() => {
   const raw = route.query.sort
   if (!raw) return []
@@ -51,18 +59,14 @@ const sortOf = (key) => {
 }
 
 function syncDraft() {
-  draft.value = Object.fromEntries(FILTER_KEYS.map((k) => [k, route.query[k] || '']))
+  draft.value = Object.fromEntries(FILTER_KEYS.value.map((k) => [k, route.query[k] || '']))
 }
 
 async function load() {
   loading.value = true
   failed.value = false
   try {
-    const res = await api('/rmas', { query: { ...route.query } })
-    data.value = res
-    if (openId.value && res.open_found === false) {
-      toast({ title: res.open_exists ? '현재 검색 조건에 없는 RMA입니다' : 'RMA를 찾을 수 없습니다', description: openId.value, tone: 'red' })
-    }
+    data.value = await api('/rmas', { query: apiQuery(route.query) })
   } catch (e) {
     failed.value = true
     toast({ title: e.message, tone: 'red' })
@@ -74,13 +78,24 @@ async function load() {
 watch(
   () => route.query,
   () => {
+    // 이전 화면(대시보드·알림)의 /rmas?open=ID 링크는 케이스 화면으로 보낸다
+    if (route.query.open) return router.replace(`/rmas/${route.query.open}/case`)
     syncDraft()
-    chatContext.rmaId = openId.value
     load()
   },
   { immediate: true, deep: true },
 )
-onBeforeUnmount(() => (chatContext.rmaId = null))
+
+// URL 조건 → API 조건. CS는 QUALITY 전용 조건(심각도·재발, 심각도 정렬)을 빼고 보낸다
+function apiQuery(query) {
+  const q = { ...query }
+  delete q.open
+  if (!quality.value) {
+    QUALITY_ONLY.forEach((k) => delete q[k])
+    if (q.sort) q.sort = String(q.sort).split(',').filter((x) => !x.startsWith('severity')).join(',') || undefined
+  }
+  return q
+}
 
 function search() {
   if (draft.value.from && draft.value.to && draft.value.from > draft.value.to) {
@@ -107,10 +122,10 @@ const exporting = ref(false)
 async function exportCsv() {
   exporting.value = true
   try {
-    const { page, open, size: _size, ...q } = route.query
+    const { page, size: _size, ...q } = apiQuery(route.query)
     const res = await api('/rmas/export', { query: q, raw: true })
-    const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'rma.csv'
-    saveFile(await res.blob(), name)
+    if (res instanceof Blob) saveFile(res, 'rma.csv') // 목업
+    else saveFile(await res.blob(), /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'rma.csv')
     toast({ title: `${data.value?.total ?? ''}건을 CSV로 내보냈습니다`, tone: 'green' })
   } catch (e) {
     toast({ title: e.message, tone: 'red' })
@@ -123,24 +138,23 @@ function removeChip(key) {
   const q = { ...route.query }
   delete q[key]
   delete q.page
-  delete q.open
   router.push({ query: q })
 }
 
 const chips = computed(() =>
-  FILTER_KEYS.filter((k) => route.query[k]).map((k) => {
+  FILTER_KEYS.value.filter((k) => route.query[k]).map((k) => {
     let v = route.query[k]
-    if (k === 'recurrence') v = RECURRENCE.find((r) => r.value === v)?.label || v
+    if (k === 'recurrence') v = pick(RECURRENCE, v).label
+    if (k === 'status') v = pick(CS_STATUS, v).label
+    if (k === 'classification') v = pick(CLASSIFICATION, v).label
     if (k === 'overDays') v = `${v}일 초과`
     return { key: k, label: `${LABELS[k]}: ${String(v).replaceAll(',', ', ')}` }
   }),
 )
 
-function toggleRow(id) {
-  const q = { ...route.query, page: data.value.page }
-  if (openId.value === id) delete q.open
-  else q.open = id
-  router.replace({ query: q })
+// 행을 누르면 케이스 화면(입력·에이전트 결과·판정)으로 간다
+function openCase(id) {
+  router.push(`/rmas/${id}/case`)
 }
 
 // 열 이름 클릭: 정렬 없음 → 내림차순(맨 뒤에 추가) → 오름차순 → 해제. 여러 열을 함께 걸면 앞쪽부터 차례로 적용
@@ -155,7 +169,6 @@ function setSort(key) {
 
 function pushSorts(list) {
   const q = { ...route.query }
-  delete q.open
   delete q.order
   delete q.page
   if (list.length) q.sort = list.map((x) => `${x.key}:${x.dir}`).join(',')
@@ -165,7 +178,6 @@ function pushSorts(list) {
 
 function goPage(p) {
   const q = { ...route.query, page: p }
-  delete q.open // 페이지 이동 시 펼친 행은 닫힘
   router.push({ query: q })
 }
 
@@ -176,23 +188,17 @@ function setSize(s) {
 }
 
 const pages = computed(() => (data.value ? Math.max(1, Math.ceil(data.value.total / data.value.size)) : 1))
-// 열 너비 비율 (표 고정 레이아웃): 내용 길이에 맞춰 나눠 수량이 불량 유형 바로 옆에 오게 한다
-const columns = [
-  { key: 'rma_id', label: 'RMA ID', w: '9%' }, { key: 'claim_date', label: '접수일', w: '9%' }, { key: 'product', label: '제품', w: '6%' },
-  { key: 'claim_channel', label: '접수 채널', w: '11%' }, { key: 'defect_type', label: '불량 유형', w: '12%' }, { key: 'defect_subtype', label: '소분류', w: '13%' },
-  { key: 'classification_status', label: '분류 상태', w: '9%' }, { key: 'claim_qty', label: '수량', w: '5%' },
-  { key: 'severity', label: '심각도', w: '9%' }, { key: 'claim_status', label: '처리 상태', w: '8%' }, { key: null, label: '재발', w: '9%' },
+// 열 너비 비율 (표 고정 레이아웃). key = Spring 정렬 키, quality = QUALITY에게만 보이는 열
+const ALL_COLUMNS = [
+  { key: 'rma_id', label: 'RMA ID', w: '9%' }, { key: 'opened_at', label: '접수일', w: '8%' },
+  { key: 'reported_part_no', label: '제품', w: '11%' }, { key: 'detection_stage', label: '발견 단계', w: '10%' },
+  { key: 'major_name', label: '불량 유형', w: '11%' }, { key: 'minor_name', label: '소분류', w: '11%' },
+  { key: 'classification_status', label: '분류 상태', w: '8%' }, { key: 'claimed_defect_qty', label: '수량', w: '6%' },
+  { key: 'analysis_level', label: '수준', w: '5%' }, { key: 'severity', label: '심각도', w: '6%', quality: true },
+  { key: 'cs_status', label: '처리 상태', w: '8%' }, { key: null, label: '재발', w: '9%', quality: true },
 ]
-const classificationTone = (s) => (s === '분류 완료' ? 'blue' : s === '정보 부족' || s === '미분류' ? 'gray' : 'yellow')
-const labelOf = (key) => columns.find((c) => c.key === key)?.label || key
-const Detail = computed(() => (auth.user?.role === 'QUALITY' ? RmaDetailQuality : RmaDetailCs))
-
-let scrolledFor = null
-function scrollToOpen(el) {
-  if (!el || scrolledFor === openId.value) return
-  scrolledFor = openId.value
-  setTimeout(() => el.previousElementSibling?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-}
+const columns = computed(() => ALL_COLUMNS.filter((c) => !c.quality || quality.value))
+const labelOf = (key) => ALL_COLUMNS.find((c) => c.key === key)?.label || key
 </script>
 
 <template>
@@ -210,14 +216,15 @@ function scrollToOpen(el) {
       <Button type="button" variant="outline" @click="reset"><RotateCcw class="size-4" />초기화</Button>
       <Button type="button" variant="outline" :loading="exporting" :disabled="!data?.total" @click="exportCsv"><Download class="size-4" />내보내기</Button>
     </div>
-    <Select v-model="draft.product" placeholder="제품 전체" :options="(meta?.products || []).map((p) => ({ value: p.code, label: `${p.code} ${p.name}` }))" />
-    <Select v-model="draft.defectType" placeholder="불량 유형 전체" :options="meta?.defect_types || []" />
-    <Select v-model="draft.classification" placeholder="분류 상태 전체" :options="CLASSIFICATION" />
-    <Select v-model="draft.status" placeholder="처리 상태 전체" :options="meta?.statuses || []" />
-    <Select v-model="draft.severity" placeholder="심각도 전체" :options="meta?.severities || []" />
-    <Select v-model="draft.channel" placeholder="접수 채널 전체" :options="meta?.channels || []" />
-    <Select v-model="draft.recurrence" placeholder="재발 여부 전체" :options="RECURRENCE" />
-    <DateRange class="col-span-2" block clearable align="right" placeholder="접수 기간 전체" :max-days="Infinity" :from="draft.from" :to="draft.to" @apply="applyPeriod" />
+    <Select v-model="draft.product" placeholder="제품 전체" :options="(meta?.products || []).map((p) => ({ value: p.part_no, label: p.part_no }))" />
+    <Select v-model="draft.defectType" placeholder="불량 유형 전체" :options="MAJORS" />
+    <Select v-model="draft.classification" placeholder="분류 상태 전체" :options="toOptions(CLASSIFICATION)" />
+    <Select v-model="draft.status" placeholder="처리 상태 전체" :options="toOptions(CS_STATUS)" />
+    <template v-if="quality">
+      <Select v-model="draft.severity" placeholder="심각도 전체" :options="SEVERITIES" />
+      <Select v-model="draft.recurrence" placeholder="재발 판정 전체" :options="toOptions(RECURRENCE)" />
+    </template>
+    <DateRange :class="quality ? 'col-span-2' : 'col-span-4'" block clearable align="right" placeholder="접수 기간 전체" :max-days="Infinity" :from="draft.from" :to="draft.to" @apply="applyPeriod" />
   </form>
 
   <div class="mb-3 flex min-h-7 flex-wrap items-center gap-1.5">
@@ -234,10 +241,9 @@ function scrollToOpen(el) {
 
   <div class="overflow-hidden rounded-[14px] border bg-card">
     <table class="w-full table-fixed text-sm">
-      <colgroup><col class="w-9" /><col v-for="c in columns" :key="c.label" :style="{ width: c.w }" /></colgroup>
+      <colgroup><col v-for="c in columns" :key="c.label" :style="{ width: c.w }" /></colgroup>
       <thead class="border-b bg-muted/40 text-xs text-muted-foreground">
         <tr>
-          <th />
           <th v-for="c in columns" :key="c.label" class="px-3 py-2.5 text-left font-medium">
             <button
               v-if="c.key" :class="sortOf(c.key) ? 'text-foreground' : ''" class="inline-flex items-center gap-1 hover:text-foreground"
@@ -255,31 +261,30 @@ function scrollToOpen(el) {
       </thead>
       <tbody>
         <template v-if="loading && !data">
-          <tr v-for="i in 10" :key="i" class="border-b"><td colspan="12" class="px-3 py-2.5"><Skeleton class="h-5" /></td></tr>
+          <tr v-for="i in 10" :key="i" class="border-b"><td :colspan="columns.length" class="px-3 py-2.5"><Skeleton class="h-5" /></td></tr>
         </template>
-        <tr v-else-if="failed && !data"><td colspan="12" class="py-16 text-center text-sm text-muted-foreground">잠시 후 다시 시도하세요 <Button variant="link" size="sm" @click="load">재시도</Button></td></tr>
+        <tr v-else-if="failed && !data"><td :colspan="columns.length" class="py-16 text-center text-sm text-muted-foreground">잠시 후 다시 시도하세요 <Button variant="link" size="sm" @click="load">재시도</Button></td></tr>
         <tr v-else-if="data && !data.items.length">
-          <td colspan="12" class="py-16 text-center text-sm text-muted-foreground">조건에 맞는 RMA가 없습니다 <Button variant="link" size="sm" @click="reset">조건 초기화</Button></td>
+          <td :colspan="columns.length" class="py-16 text-center text-sm text-muted-foreground">조건에 맞는 RMA가 없습니다 <Button variant="link" size="sm" @click="reset">조건 초기화</Button></td>
         </tr>
-        <template v-for="r in data?.items || []" :key="r.rma_id">
-          <tr :class="openId === r.rma_id ? 'bg-muted/60' : 'hover:bg-muted/40'" class="cursor-pointer scroll-mt-20 border-b" @click="toggleRow(r.rma_id)">
-            <td class="pl-3"><Caret :class="openId === r.rma_id ? 'rotate-90' : ''" class="size-4 text-muted-foreground transition-transform" /></td>
-            <td class="px-3 py-2.5 font-medium">{{ r.rma_id }}</td>
-            <td class="px-3 py-2.5 tabular">{{ fmtDate(r.claim_date) }}</td>
-            <td class="px-3 py-2.5">{{ r.product }}</td>
-            <td class="truncate px-3 py-2.5" :title="r.claim_channel">{{ r.claim_channel }}</td>
-            <td class="truncate px-3 py-2.5" :title="r.defect_type">{{ r.defect_type }}</td>
-            <td class="truncate px-3 py-2.5" :title="r.defect_subtype">{{ r.defect_subtype || '—' }}</td>
-            <td class="px-3 py-2.5"><Badge v-if="r.classification_status" :tone="classificationTone(r.classification_status)">{{ r.classification_status }}</Badge><span v-else class="text-muted-foreground">—</span></td>
-            <td class="px-3 py-2.5 tabular">{{ r.claim_qty }}</td>
-            <td class="px-3 py-2.5"><Badge :tone="SEVERITY_TONE[r.severity]">{{ r.severity }}</Badge></td>
-            <td class="px-3 py-2.5"><Badge :tone="STATUS_TONE[r.claim_status]">{{ r.claim_status }}</Badge></td>
-            <td class="px-3 py-2.5"><Badge v-if="r.recurrence" :tone="recurrenceTone(r.recurrence)">{{ r.recurrence }}</Badge><span v-else class="text-muted-foreground">—</span></td>
-          </tr>
-          <tr v-if="openId === r.rma_id" :ref="scrollToOpen" class="border-b">
-            <td colspan="12" class="p-0"><component :is="Detail" :key="r.rma_id" :rma-id="r.rma_id" @changed="load" /></td>
-          </tr>
-        </template>
+        <tr
+          v-for="r in data?.items || []" :key="r.rma_id" tabindex="0"
+          class="cursor-pointer border-b hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+          @click="openCase(r.rma_id)" @keydown.enter="openCase(r.rma_id)"
+        >
+          <td class="px-3 py-2.5 font-medium">{{ r.rma_id }}</td>
+          <td class="px-3 py-2.5 tabular">{{ fmtDate(r.opened_at) }}</td>
+          <td class="truncate px-3 py-2.5" :title="r.reported_part_no">{{ r.reported_part_no }}</td>
+          <td class="truncate px-3 py-2.5" :title="stageLabel(r.detection_stage)">{{ stageLabel(r.detection_stage) || '—' }}</td>
+          <td class="truncate px-3 py-2.5" :title="r.major_name">{{ r.major_name || '—' }}</td>
+          <td class="truncate px-3 py-2.5" :title="r.minor_name">{{ r.minor_name || '—' }}</td>
+          <td class="px-3 py-2.5"><Badge v-if="r.classification_status" :tone="pick(CLASSIFICATION, r.classification_status).tone">{{ pick(CLASSIFICATION, r.classification_status).label }}</Badge><span v-else class="text-muted-foreground">—</span></td>
+          <td class="px-3 py-2.5 tabular">{{ r.claimed_defect_qty }}</td>
+          <td class="px-3 py-2.5"><Badge v-if="r.analysis_level" :tone="LEVEL_TONE[r.analysis_level]">{{ r.analysis_level }}</Badge><span v-else class="text-muted-foreground">—</span></td>
+          <td v-if="quality" class="px-3 py-2.5"><Badge v-if="r.severity != null" :tone="severityTone(r.severity)">{{ r.severity }}</Badge><span v-else class="text-muted-foreground">—</span></td>
+          <td class="px-3 py-2.5"><Badge :tone="pick(CS_STATUS, r.cs_status).tone">{{ pick(CS_STATUS, r.cs_status).label }}</Badge></td>
+          <td v-if="quality" class="px-3 py-2.5"><Badge v-if="r.recurrence_verdict" :tone="pick(RECURRENCE, r.recurrence_verdict).tone">{{ pick(RECURRENCE, r.recurrence_verdict).label }}</Badge><span v-else class="text-muted-foreground">—</span></td>
+        </tr>
       </tbody>
     </table>
     <div class="flex items-center justify-between border-t px-4 py-2.5 text-xs">

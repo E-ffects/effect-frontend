@@ -332,6 +332,55 @@ function approvals(query) {
   return { items, total: items.length, page: 1, size: 30 }
 }
 
+// GET /api/rmas (Spring RmaListResponse와 같은 필드). 목업은 들고 있는 케이스만 나열한다
+const SORT_KEYS = ['rma_id', 'opened_at', 'customer_name', 'reported_part_no', 'detection_stage', 'major_name', 'minor_name',
+  'classification_status', 'claimed_defect_qty', 'severity', 'cs_status', 'analysis_level', 'analysis_state']
+function listRows(query = {}) {
+  const quality = role() === 'QUALITY'
+  if (!quality && (query.severity || query.recurrence || /severity/.test(query.sort || ''))) throw new MockError(400, '입력값을 확인해 주세요.')
+  const rows = Object.values(db.claims).map((c) => {
+    const a = analysisView(c.rma_id)
+    return {
+      rma_id: c.rma_id, opened_at: c.opened_at, customer_name: c.customer_name, reported_part_no: c.reported_part_no,
+      detection_stage: c.detection_stage, major_name: c.symptom?.major_name || null, minor_name: c.symptom?.minor_name || null,
+      classification_status: c.symptom ? (c.intake_state === 'NEEDS_INFO' ? 'INSUFFICIENT_INFO' : 'CLASSIFIED') : null,
+      claimed_defect_qty: c.claimed_defect_qty ?? c.items?.[0]?.claimed_defect_qty ?? 0,
+      severity: c.triage?.severity ?? null, analysis_level: c.triage?.analysis_level || null, cs_status: c.cs_status,
+      qa_status: c.qa_status, intake_state: c.intake_state, analysis_state: a.analysis_state, approval_status: approvalOf(c.rma_id),
+      recurrence_verdict: a.result?.recurrence_check?.status || null,
+    }
+  })
+  const day = (t) => String(t).slice(0, 10)
+  const f = rows.filter((r) =>
+    (!query.q || [r.rma_id, r.customer_name, r.reported_part_no, r.major_name, r.minor_name].join(' ').toLowerCase().includes(String(query.q).toLowerCase()))
+    && (!query.product || r.reported_part_no === query.product) && (!query.defectType || r.major_name === query.defectType)
+    && (!query.classification || r.classification_status === query.classification) && (!query.status || r.cs_status === query.status)
+    && (!query.severity || r.severity === Number(query.severity)) && (!query.recurrence || r.recurrence_verdict === query.recurrence)
+    && (!query.from || day(r.opened_at) >= query.from) && (!query.to || day(r.opened_at) <= query.to))
+  const sorts = String(query.sort || 'opened_at:desc').split(',').map((x) => x.split(':'))
+  if (sorts.some(([k]) => !SORT_KEYS.includes(k))) throw new MockError(400, '입력값을 확인해 주세요.')
+  f.sort((x, y) => {
+    for (const [k, d] of sorts) {
+      const c = x[k] == null ? 1 : y[k] == null ? -1 : x[k] < y[k] ? -1 : x[k] > y[k] ? 1 : 0
+      if (c) return d === 'asc' ? c : -c
+    }
+    return 0
+  })
+  return f.map((r) => (quality ? r : { ...r, severity: null, qa_status: null, approval_status: null, recurrence_verdict: null }))
+}
+function rmaList(query = {}) {
+  const all = listRows(query)
+  const page = Number(query.page) || 1
+  const size = Number(query.size) || 30
+  return { items: all.slice((page - 1) * size, page * size), total: all.length, page, size }
+}
+function rmaCsv(query = {}) {
+  const rows = listRows(query)
+  const cols = ['rma_id', 'opened_at', 'customer_name', 'reported_part_no', 'major_name', 'minor_name', 'claimed_defect_qty', 'analysis_level', 'cs_status']
+  const esc = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`
+  return new Blob(['\uFEFF' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n')], { type: 'text/csv;charset=utf-8' })
+}
+
 function triageReviews() {
   need('QUALITY')
   const items = Object.values(db.claims)
@@ -377,7 +426,11 @@ const routes = [
   }],
   ['POST', /^\/auth\/(logout|reissue)$/, () => { throw new MockError(401, '로그인이 필요합니다.') }],
   ['GET', /^\/auth\/me$/, () => JSON.parse(localStorage.getItem('rma.user') || 'null')],
-  ['GET', /^\/ai\/health$/, () => ({ available: true, provider: '목업' })],
+  // Spring GET /api/ai/health와 같은 모양. 시연용 장애 전환(/ai/toggle)은 목업에만 있다
+  ['GET', /^\/ai\/health$/, () => ({ available: !db.aiDown, provider: 'mock', status: db.aiDown ? 'down' : 'ok', db: 'ok', llm: 'off' })],
+  ['POST', /^\/ai\/toggle$/, (_, b) => { db.aiDown = !b.available; save(); return { available: !db.aiDown } }],
+  ['GET', /^\/rmas$/, (_, __, q) => rmaList(q)],
+  ['GET', /^\/rmas\/export$/, (_, __, q) => rmaCsv(q)],
   ['GET', /^\/alerts$/, () => ({ items: [], unread: 0, unread_by_type: {}, max_id: 0, starred_count: 0 })],
   ['GET', /^\/meta$/, () => meta],
   ['POST', /^\/intake$/, (_, b) => intake(b)],

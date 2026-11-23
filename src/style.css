@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+/* 3D 모델(.glb, 수 MB)은 클래스 스캔에서 뺀다: 텍스트로 훑으면 CSS 생성이 1분 넘게 걸린다 */
+@source not "../public/pcb3d";
 
 /* E!ffect 브랜드 톤 (RMA_SK_Interactive_v4 기준) */
 @theme {

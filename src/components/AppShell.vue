@@ -5,7 +5,7 @@ import { AlertTriangle, LogOut, PanelRight } from 'lucide-vue-next'
 import BrandMark from './BrandMark.vue'
 import NotificationBell from './NotificationBell.vue'
 import AgentPanel from './AgentPanel.vue'
-import { api, referenceDate } from '@/lib/api'
+import { api, MOCK, referenceDate } from '@/lib/api'
 import { useMeta } from '@/lib/meta'
 import { agentPanel, aiState, auth, clearSession, setAgentPanelOpen } from '@/lib/state'
 
@@ -19,6 +19,7 @@ const menus = computed(() =>
     ? [
         { to: '/quality/dashboard', label: '대시보드' },
         { to: '/rmas', label: 'RMA 조회' },
+        { to: '/quality/approvals', label: '원인 판정' },
         { to: '/quality/patterns', label: '불량 패턴 분석' },
         { to: '/quality/recurrence', label: '알림 및 재발 관리' },
         { to: '/quality/reports', label: 'AI 보고서' },
@@ -33,8 +34,10 @@ const menus = computed(() =>
 async function checkAi() {
   try {
     const health = await api('/ai/health')
-    aiState.available = health.available
-    aiState.provider = health.provider
+    // Spring GET /api/ai/health: {available, provider, status, db, llm}
+    // 정상·장애는 available로만 판단한다. llm=off여도 available=true면 규칙 기반으로 동작 중
+    aiState.available = health.available === true
+    aiState.provider = health.llm === 'ok' ? 'LLM' : '규칙 기반'
   } catch {
     /* health 실패는 배너 상태를 바꾸지 않음 */
   }
@@ -74,15 +77,18 @@ function logout() {
           </RouterLink>
         </nav>
         <div class="ml-auto flex items-center gap-3">
-          <button
-            class="flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-1 text-[12px] text-muted-foreground hover:bg-muted"
-            :title="`AI 엔진: ${aiState.provider || '확인 중'}. 시연용: 클릭하면 AI 서비스 장애 상황을 켜고 끕니다 (NFR-02-3)`"
-            @click="toggleAi"
+          <!-- 시연용 장애 전환(/ai/toggle)은 목업 모드에서만. 실제 연결에서는 상태 표시만 한다 -->
+          <component
+            :is="MOCK ? 'button' : 'span'"
+            :class="MOCK ? 'hover:bg-muted' : ''"
+            class="flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-1 text-[12px] text-muted-foreground"
+            :title="MOCK ? `AI 엔진: ${aiState.provider || '확인 중'}. 시연용: 클릭하면 AI 서비스 장애 상황을 켜고 끕니다` : `AI 엔진: ${aiState.provider || '확인 중'}`"
+            @click="MOCK && toggleAi()"
           >
             <span :class="aiState.available ? 'bg-emerald-500' : 'bg-red-500'" class="size-1.5 rounded-full" />
             AI {{ aiState.available ? '정상' : '장애' }}
-            <span v-if="aiState.provider" class="text-muted-foreground/70">{{ aiState.provider.startsWith('gemini') ? 'Gemini' : '규칙 기반' }}</span>
-          </button>
+            <span v-if="aiState.available && aiState.provider" class="text-muted-foreground/70">{{ aiState.provider }}</span>
+          </component>
           <button
             :aria-pressed="agentPanel.open"
             :class="agentPanel.open ? 'border-brand-line bg-brand-soft text-primary' : 'text-[#4a505c] hover:bg-muted'"

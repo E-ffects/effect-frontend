@@ -381,6 +381,25 @@ function rmaCsv(query = {}) {
   return new Blob(['\uFEFF' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n')], { type: 'text/csv;charset=utf-8' })
 }
 
+// GET /api/dashboard/cs (Spring CsDashboardResponse). 손실은 목업에 원장이 없어 0
+function csDashboard(query = {}) {
+  need('CS')
+  const to = query.to || NOW.slice(0, 10)
+  const from = query.from || new Date(new Date(to) - 29 * 86400000).toISOString().slice(0, 10)
+  const inPeriod = (t) => t && String(t).slice(0, 10) >= from && String(t).slice(0, 10) <= to
+  const claims = Object.values(db.claims)
+  const closedAt = (id) => (db.actions[id] || []).filter((a) => a.executed_at).map((a) => a.executed_at).sort().at(-1)
+  return {
+    period: { from, to }, as_of: NOW,
+    kpis: {
+      received_count: claims.filter((c) => inPeriod(c.opened_at)).length,
+      pending_count: claims.filter((c) => c.cs_status !== 'CLOSED').length,
+      closed_count: claims.filter((c) => c.cs_status === 'CLOSED' && inPeriod(closedAt(c.rma_id))).length,
+      estimated_loss_krw: 0,
+    },
+  }
+}
+
 function triageReviews() {
   need('QUALITY')
   const items = Object.values(db.claims)
@@ -430,6 +449,7 @@ const routes = [
   ['GET', /^\/ai\/health$/, () => ({ available: !db.aiDown, provider: 'mock', status: db.aiDown ? 'down' : 'ok', db: 'ok', llm: 'off' })],
   ['POST', /^\/ai\/toggle$/, (_, b) => { db.aiDown = !b.available; save(); return { available: !db.aiDown } }],
   ['GET', /^\/rmas$/, (_, __, q) => rmaList(q)],
+  ['GET', /^\/dashboard\/cs$/, (_, __, q) => csDashboard(q)],
   ['GET', /^\/rmas\/export$/, (_, __, q) => rmaCsv(q)],
   ['GET', /^\/alerts$/, () => ({ items: [], unread: 0, unread_by_type: {}, max_id: 0, starred_count: 0 })],
   ['GET', /^\/meta$/, () => meta],

@@ -34,8 +34,10 @@ const pdfBusy = ref(false)
 
 const rmaId = computed(() => route.query.rmaId)
 
+// Spring은 { items, total, page, size }로 준다 (한 번에 최대 100건)
 async function loadHistory() {
-  history.value = await api('/reports').catch(reportLoadError)
+  const res = await api('/reports', { query: { size: 100 } }).catch(reportLoadError)
+  history.value = res?.items ?? []
 }
 
 watch(
@@ -79,7 +81,8 @@ async function withProgress(fn) {
     gen.value = { state: 'done', progress: 100 }
   } catch (e) {
     gen.value = { state: 'failed', progress: 0 }
-    toast({ title: e.status === 503 ? 'AI 일시 불가' : e.status === 404 ? 'RMA를 찾을 수 없습니다' : '보고서 생성에 실패했습니다', tone: 'red' })
+    // 409: 분석 결과가 아직 없거나 초안이 오래됨 — Spring 문구를 그대로 보여 준다
+    toast({ title: e.status === 503 ? 'AI 일시 불가' : e.status === 404 ? 'RMA를 찾을 수 없습니다' : e.status === 409 ? e.message : '보고서 생성에 실패했습니다', tone: 'red' })
   } finally {
     clearInterval(tick)
     clearTimeout(slow)

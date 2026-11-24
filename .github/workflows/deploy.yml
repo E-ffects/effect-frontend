@@ -1,0 +1,78 @@
+name: Deploy
+
+# 클러스터 OIDC Role은 main push에서만 발급된다. 다른 브랜치·PR은 AWS 인증이 거부된다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_ROLE: arn:aws:iam::430986759212:role/gha-u1-2
+  AWS_REGION: ap-northeast-2
+  CLUSTER: skala-us
+  NAMESPACE: u1-2
+  ECR_REPO: teams/u1-2/app
+
+jobs:
+  deploy:
+    # ECR push와 클러스터 API는 울산 캠퍼스 네트워크에서만 열린다
+    runs-on: [self-hosted, campus]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      # 태그는 IMMUTABLE이라 서비스명-커밋해시로만 쓴다. 노드가 amd64라 플랫폼을 고정한다.
+      # 같은 커밋을 다시 실행하면 이미 올린 이미지를 그대로 쓴다.
+      - name: Build & push
+        run: |
+          IMAGE=${{ steps.ecr.outputs.registry }}/${ECR_REPO}:frontend-${GITHUB_SHA}
+          if docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "이미 있는 이미지라 빌드를 건너뜀: $IMAGE"
+          else
+            docker buildx build --platform linux/amd64 --push -t "$IMAGE" .
+          fi
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: E-ffects/effect-deployment
+          token: ${{ secrets.DEPLOYMENT_REPO_TOKEN }}
+          path: deployment
+
+      # 매니페스트 저장소를 배포 기준으로 유지한다. 백엔드 배포와 겹치면 최신 main 위에 다시 올린다.
+      - name: Update image tag
+        working-directory: deployment/k8s
+        run: |
+          perl -0pi -e 's/(- name: frontend\n\s+newName: \S+\n\s+newTag:).*/$1 frontend-$ENV{GITHUB_SHA}/' kustomization.yaml
+          grep -q "newTag: frontend-${GITHUB_SHA}" kustomization.yaml
+          git diff --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "deploy: frontend ${GITHUB_SHA::7}"
+          for i in 1 2 3; do
+            git push && exit 0
+            git pull --rebase
+          done
+          exit 1
+
+      - name: Deploy
+        run: |
+          aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION"
+          kubectl -n "$NAMESPACE" apply -k deployment/k8s
+          kubectl -n "$NAMESPACE" rollout status deployment/frontend --timeout=300s

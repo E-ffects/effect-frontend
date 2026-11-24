@@ -2,9 +2,11 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import { clearPageError, reportUnhandledError } from './lib/state'
+import { vSlidePill } from './lib/slidePill'
 import './style.css'
 
 const app = createApp(App)
+app.directive('slide-pill', vSlidePill)
 
 // 화면 코드 오류 · 잡지 않은 API 오류: 빈 화면 대신 알림을 띄우고 콘솔에 남긴다
 app.config.errorHandler = (err) => reportUnhandledError(err)

@@ -102,6 +102,84 @@
     color: #111;
     box-shadow: 0 1px 3px rgb(16 24 40 / 0.08);
   }
+  /* v-slide-pill: 선택 표시를 미끄러지는 알약 하나가 맡는다. 항목 자체의 배경은 끈다 */
+  .has-pill {
+    position: relative;
+  }
+  .has-pill > * {
+    position: relative;
+    z-index: 1;
+  }
+  .has-pill > [data-pill] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 0;
+    pointer-events: none;
+    will-change: transform, width;
+  }
+  .has-pill > .seg-item[aria-selected='true'],
+  .has-pill > .seg-item:has(input:checked) {
+    background: transparent;
+    box-shadow: none;
+  }
+  .seg-pill {
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgb(16 24 40 / 0.08);
+  }
+  .chip-pill {
+    border-radius: 999px;
+    border: 1px solid #111;
+    background: #fff;
+  }
+}
+
+/* 움직임 공통 (Kokonut UI·DesignBookmark 참고) */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* 진행 중인 단계 이름에 밝기 물결 */
+@keyframes ai-wave {
+  50% {
+    opacity: 0.3;
+  }
+}
+.ai-wave {
+  animation: ai-wave 1.6s ease-in-out infinite both;
+}
+/* 체크 표시가 스스로 그려진다 (pathLength=1 인 path에 붙인다) */
+@keyframes draw-check {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+.draw-check {
+  stroke-dasharray: 1;
+  animation: draw-check 0.3s var(--ease-out) 0.05s both;
+}
+/* 높이 auto까지 접고 펴기: grid 0fr ↔ 1fr */
+.fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.25s var(--ease-out), opacity 0.25s var(--ease-out);
+}
+.fold > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.fold[data-open='false'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .tabular {

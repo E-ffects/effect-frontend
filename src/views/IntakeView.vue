@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, FileText, Paperclip, Send, Upload, X } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
+import SubmitButton from '@/components/ui/SubmitButton.vue'
 import Card from '@/components/ui/Card.vue'
 import Input from '@/components/ui/Input.vue'
 import Select from '@/components/ui/Select.vue'
@@ -81,25 +82,37 @@ function addOthers(list) {
 }
 const kb = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`)
 
-async function submit() {
+// 접수 버튼: 입력 확인(check) → 저장(action, 버튼이 원으로 접혀 돈다) → 완료 모습을 보인 뒤 케이스 화면으로(done)
+const submitBtn = ref(null)
+const created = ref(null)
+function checkForm() {
   tried.value = true
   serverError.value = ''
-  if (!valid.value) return toast({ title: '빠진 항목을 채워 주세요', tone: 'red' })
+  if (valid.value) return true
+  toast({ title: '빠진 항목을 채워 주세요', tone: 'red' })
+  return false
+}
+async function save() {
   saving.value = true
   try {
     const fd = new FormData()
     for (const [k, v] of Object.entries(form)) if (String(v).trim()) fd.append(k, String(v).trim())
     fd.append('raw_file', rawFile.value)
     for (const f of others.value) fd.append('attachments', f)
-    const res = await api('/intake', { method: 'POST', body: fd })
-    toast({ title: `${res.rma_id} 접수했습니다`, tone: 'green' })
-    router.push(`/rmas/${res.rma_id}/case`)
+    created.value = await api('/intake', { method: 'POST', body: fd })
+    return true
   } catch (e) {
     serverError.value = e.message
+    return false
   } finally {
     saving.value = false
   }
 }
+function afterSaved() {
+  toast({ title: `${created.value.rma_id} 접수했습니다`, tone: 'green' })
+  router.push(`/rmas/${created.value.rma_id}/case`)
+}
+const submit = () => submitBtn.value?.run()
 
 const OUTPUTS = [
   { k: '증상 분류', d: '원문에서 소분류와 근거 문장' },
@@ -185,7 +198,7 @@ const optCls = 'font-normal text-muted-foreground'
           </div>
           <div :class="field" class="col-span-2 sm:col-span-3">
             <span :class="labelCls" id="l-req">고객 요청 <span :class="optCls">(선택)</span></span>
-            <div role="radiogroup" aria-labelledby="l-req" class="seg h-9">
+            <div v-slide-pill="'seg-pill'" role="radiogroup" aria-labelledby="l-req" class="seg h-9">
               <label
                 v-for="o in ['', ...meta.customer_requests]" :key="o || 'none'"
                 class="seg-item flex flex-auto cursor-pointer items-center justify-center whitespace-nowrap px-2 text-[12px] font-semibold has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
@@ -258,7 +271,7 @@ const optCls = 'font-normal text-muted-foreground'
 
       <div class="rounded-[14px] border bg-card p-5">
         <p v-if="serverError" role="alert" class="mb-3 rounded-md bg-[#fff0f3] px-3 py-2 text-sm text-[#b4122f]">{{ serverError }}</p>
-        <Button type="submit" class="h-11 w-full text-[15px]" :loading="saving" :disabled="saving"><Send class="size-4" />접수하고 분석 시작</Button>
+        <SubmitButton ref="submitBtn" block size="lg" :check="checkForm" :action="save" success-label="접수 완료" @done="afterSaved"><Send class="size-4" />접수하고 분석 시작</SubmitButton>
         <p class="mt-2.5 text-center text-xs text-muted-foreground">분석이 실패해도 접수는 저장됩니다.</p>
         <p v-if="MOCK" class="mt-1 text-center text-xs text-sk-orange">목업 모드: 원문에 "정보 부족" 또는 "임시 판정"을 넣으면 예외 흐름을 볼 수 있습니다.</p>
       </div>

@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { AlertTriangle, Loader2, RefreshCw } from 'lucide-vue-next'
+import { AlertTriangle, RefreshCw } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
+import SubmitButton from '@/components/ui/SubmitButton.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import AgentProgress from '@/components/case/AgentProgress.vue'
 import CaseInput from '@/components/case/CaseInput.vue'
@@ -80,6 +81,16 @@ async function refresh() {
 }
 
 const reanalyzing = ref(false)
+// 기존 사례 분석 실행 버튼: 요청만 보내고(원으로 접혀 돈다), 완료 모습 뒤에 진행 상태를 불러온다
+async function requestAnalysis() {
+  try {
+    await api(`/rmas/${rmaId.value}/analysis`, { method: 'POST', body: { mode: 'B', top_k: 3 } })
+    return true
+  } catch (e) {
+    toast({ title: e.message, tone: 'red' })
+    return false
+  }
+}
 async function reanalyze() {
   reanalyzing.value = true
   try {
@@ -147,7 +158,6 @@ const csResult = computed(() => analysis.value?.result)
       <div class="mb-3 flex items-center gap-2">
         <h2 class="text-[15px] font-bold">에이전트 진행</h2>
         <Badge :tone="pick(ANALYSIS_STATE, analysis?.analysis_state).tone">{{ pick(ANALYSIS_STATE, analysis?.analysis_state).label }}</Badge>
-        <Loader2 v-if="running" class="size-4 animate-spin text-primary" aria-hidden="true" />
         <span v-if="analysis?.as_of" class="ml-auto text-xs text-muted-foreground tabular">기준 시각 {{ analysis.as_of.slice(0, 16).replace('T', ' ') }}</span>
       </div>
       <AgentProgress v-if="analysis?.analysis_state !== 'NOT_REQUESTED'" :analysis="analysis" />
@@ -161,7 +171,7 @@ const csResult = computed(() => analysis.value?.result)
       <!-- 기존 사례(v5 원본)는 분석 이력이 없다. QA 판정이 있으면 품질관리자가 바로 분석을 돌릴 수 있다 (POST .../analysis) -->
       <div v-else class="flex flex-wrap items-center gap-3">
         <p class="text-sm text-muted-foreground">이 건은 아직 에이전트 분석을 하지 않았습니다.<template v-if="!quality"> 품질관리자가 분석을 실행하면 결과가 보입니다.</template></p>
-        <Button v-if="quality && rma.triage" size="sm" :loading="reanalyzing" @click="reanalyze"><RefreshCw class="size-3.5" />에이전트 분석 실행</Button>
+        <SubmitButton v-if="quality && rma.triage" size="sm" :action="requestAnalysis" success-label="분석 시작" @done="refresh"><RefreshCw class="size-3.5" />에이전트 분석 실행</SubmitButton>
       </div>
       <p v-if="analysis?.analysis_state === 'PARTIAL'" class="mt-3 flex items-center gap-1.5 text-xs text-[#a8711a]"><AlertTriangle class="size-3.5" />문장 생성이 일부 빠졌습니다. 원인 순위와 근거는 정상입니다.</p>
       <p v-if="analysis?.analysis_state === 'FAILED'" class="mt-3 text-xs text-destructive">분석에 실패했습니다: {{ analysis.error?.detail || '잠시 후 다시 시도하세요' }}</p>

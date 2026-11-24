@@ -52,7 +52,7 @@ const tab = ref('cause')
 <template>
   <div class="grid gap-4">
     <!-- 회색 트랙 위 세그먼트 탭: 선택된 탭만 흰 카드로 떠 보이게 -->
-    <nav role="tablist" aria-label="분석 결과" class="seg grid grid-cols-5">
+    <nav v-slide-pill="'seg-pill'" role="tablist" aria-label="분석 결과" class="seg grid grid-cols-5">
       <button
         v-for="t in TABS" :key="t.key" role="tab" :aria-selected="tab === t.key"
         class="seg-item min-w-0 px-3 py-2.5 text-left"

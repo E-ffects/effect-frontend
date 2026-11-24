@@ -3,6 +3,8 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Bot, CheckCircle2, ChevronRight, ClipboardCheck, FilePlus2, Lock, PauseCircle, RefreshCw, Search, Send, Sparkles } from 'lucide-vue-next'
 import Button from './ui/Button.vue'
+import StreamBubble from './StreamBubble.vue'
+import { vSpringIn } from '@/lib/spring'
 import { api } from '@/lib/api'
 import { fetchAnalysis, fetchProgress, fetchSimilar } from '@/lib/agent'
 import { agentPanel, aiState, auth, chatContext, setAgentPanelOpen } from '@/lib/state'
@@ -27,9 +29,13 @@ const tasks = computed(() => [
 ].filter(Boolean))
 
 function push(msg) {
-  agentPanel.thread.push({ id: Date.now() + Math.random(), ...msg })
+  // fresh: 이 화면에서 방금 생긴 메시지 → 올라오며 나타나고, 답변은 단어 단위로 흐른다 (다 나오면 false)
+  agentPanel.thread.push({ id: Date.now() + Math.random(), fresh: true, ...msg })
   scroll()
-  return agentPanel.thread.at(-1)
+  const added = agentPanel.thread.at(-1)
+  // 화면을 옮겨 패널이 다시 그려져도 등장 움직임이 반복되지 않게. 기다리던 답은 도착하면 그대로 흐른다
+  setTimeout(() => (added.fresh = false), 1500)
+  return added
 }
 
 function scroll() {
@@ -162,21 +168,20 @@ const stepIcon = { done: CheckCircle2, hold: PauseCircle }
       </div>
 
       <template v-for="m in thread" :key="m.id">
-        <div v-if="m.role === 'user'" class="flex justify-end">
+        <div v-if="m.role === 'user'" v-spring-in="m.fresh ? { y: 14, scale: 0.92 } : null" class="flex justify-end">
           <div class="max-w-[85%] rounded-lg rounded-tr-sm bg-primary px-3 py-1.5 text-sm text-primary-foreground">{{ m.text }}</div>
         </div>
 
-        <div v-else class="flex gap-2">
+        <div v-else v-spring-in="m.fresh ? { y: 14 } : null" class="flex gap-2">
           <span class="grid size-7 shrink-0 place-items-center rounded-full bg-brand-soft text-primary"><Bot class="size-4" /></span>
           <div class="min-w-0 flex-1 space-y-2">
-            <div v-if="m.loading" class="flex items-center gap-1 px-1 py-2">
-              <i v-for="k in 3" :key="k" class="size-1.5 animate-bounce rounded-full bg-zinc-400" :style="{ animationDelay: k * 120 + 'ms' }" />
-            </div>
+            <!-- 자유 입력 답변은 말풍선이 "답변 준비 중"부터 이어서 흐른다. 그 밖의 작업은 준비 중 알약만 -->
+            <StreamBubble v-if="m.loading && m.kind !== 'chat'" loading />
             <div v-else-if="m.error" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ m.error }}</div>
 
             <!-- 일반 안내 / 자유 입력 답변 -->
             <template v-else-if="m.kind === 'text' || m.kind === 'chat'">
-              <div class="rounded-lg rounded-tl-sm bg-muted px-3 py-2 text-sm leading-relaxed">{{ m.text }}</div>
+              <StreamBubble :text="m.text" :loading="m.loading" :streaming="m.fresh" @grow="scroll" @finished="m.fresh = false" />
               <div v-if="m.evidence?.length" class="rounded-lg border p-2">
                 <p class="mb-1 text-[12px] font-medium text-muted-foreground">근거 RMA 및 조치 내역</p>
                 <button v-for="ev in m.evidence" :key="ev.rma_id" class="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-xs hover:bg-muted" @click="openRma(ev.rma_id)">

@@ -233,12 +233,12 @@ const labelOf = (key) => ALL_COLUMNS.find((c) => c.key === key)?.label || key
   </form>
 
   <!-- 불량 유형(대분류) 알약 탭: 선택된 것만 진한 테두리 (SK AX Use Case 분류 탭 참고) -->
-  <div role="tablist" aria-label="불량 유형" class="mb-4 mt-1 flex flex-wrap items-center gap-1">
+  <div v-slide-pill="'chip-pill'" role="tablist" aria-label="불량 유형" class="mb-4 mt-1 flex flex-wrap items-center gap-1">
     <button
       v-for="m in ['', ...MAJORS]" :key="m || 'all'" type="button" role="tab"
       :aria-selected="(route.query.defectType || '') === m"
-      :class="(route.query.defectType || '') === m ? 'border-[#111] bg-white font-bold text-[#111]' : 'border-transparent font-medium text-[#6b717d] hover:text-[#111]'"
-      class="rounded-full border px-3.5 py-1 text-sm transition-colors"
+      :class="(route.query.defectType || '') === m ? 'font-bold text-[#111]' : 'font-medium text-[#6b717d] hover:text-[#111]'"
+      class="rounded-full border border-transparent px-3.5 py-1 text-sm transition-colors"
       @click="pickMajor(m)"
     >
       {{ m || '전체' }}

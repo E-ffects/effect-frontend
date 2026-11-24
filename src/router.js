@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { auth, homePath } from './lib/state'
+import { auth, homePath, NOT_READY } from './lib/state'
 import { restoreQuery, saveQuery } from './lib/persist'
 
 const routes = [
@@ -25,6 +25,7 @@ router.beforeEach((to, from) => {
   if (to.meta.public) return true
   if (!auth.token) return { path: '/login', query: { redirect: to.fullPath } }
   if (to.meta.role && to.meta.role !== auth.user?.role) return { path: '/error', query: { code: 403 } }
+  if (NOT_READY.has(to.path)) return homePath() // 백엔드가 아직 없는 화면 (북마크·이전 링크)
   return restoreQuery(to, from) || true // 필터 기억 (대시보드 기간·RMA 조회·불량 패턴·알림·재발)
 })
 

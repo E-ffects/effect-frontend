@@ -25,7 +25,7 @@ function fallbackMessage(status) {
   return '요청을 처리하지 못했습니다'
 }
 
-// Spring 연결 전 화면 개발: VITE_API_MOCK=1 이면 Spring_API_v5 목업이 응답한다 (src/mock)
+// Spring 연결 전 화면 개발: VITE_API_MOCK=1 이면 Spring_API_v6 목업이 응답한다 (src/mock)
 export const MOCK = import.meta.env.VITE_API_MOCK === '1'
 let mockModule = null
 

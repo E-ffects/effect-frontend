@@ -1,4 +1,4 @@
-// Spring_API_v5 상태 값 → 화면 라벨·배지 색 (필드 이름은 PCB v5 데이터 원본, 라벨만 한국어)
+// Spring_API_v6 상태 값 → 화면 라벨·배지 색 (필드 이름은 PCB v5 데이터 원본, 라벨만 한국어)
 
 export const CS_STATUS = {
   OPEN: { label: '접수', tone: 'yellow' },

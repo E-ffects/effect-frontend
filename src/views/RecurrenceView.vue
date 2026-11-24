@@ -11,7 +11,6 @@ import BeforeAfterChart from '@/components/charts/BeforeAfterChart.vue'
 import { MailOpen, Star, Trash2 } from 'lucide-vue-next'
 import { api, fmtDate } from '@/lib/api'
 import { persistedRef } from '@/lib/persist'
-import { RESULT_TONE } from '@/lib/badges'
 import { removeAlert, reportLoadError, starAlert, toast } from '@/lib/state'
 
 // SCR-RCR-001 알림 · 재발 관리
@@ -20,15 +19,24 @@ const router = useRouter()
 const TABS = ['전체', '즐겨찾기', '고위험', '재발 의심', '확산형', '급증', '반복 재발']
 const tab = computed(() => route.query.tab || '전체')
 const alerts = ref(null)
-const actions = ref(null)
+const actions = ref(null) // Spring GET /recurrence/actions 의 content.items (조사별 대책)
 const trend = ref(null)
+// 기본 선택: 시행 후 재발이 있는 대책 → 시행된 대책 → 첫 대책
 const selected = computed(
   () =>
     route.query.recurId ||
-    (actions.value?.find((a) => a.completed_dt && a.recurrence) || actions.value?.find((a) => a.completed_dt))?.recur_id ||
+    (actions.value?.find((a) => a.implemented_at && a.recurrence_count) || actions.value?.find((a) => a.implemented_at) || actions.value?.[0])
+      ?.corrective_action_id ||
     null,
 )
-const selectedAction = computed(() => actions.value?.find((a) => a.recur_id === selected.value))
+const selectedAction = computed(() => actions.value?.find((a) => a.corrective_action_id === selected.value))
+
+// Spring 코드값 → 화면 문구
+const ROLE = { OCCURRENCE: '발생 대책', ESCAPE: '유출 대책', PREVENTION: '예방 대책', HORIZONTAL: '수평 전개' }
+const CATEGORY = { INSPECTION: '검사 강화', PROCESS_EQUIPMENT: '설비 개선', PROCESS_LOCAL: '공정 조건', SYSTEM: '시스템·기준', SUPPLIER_SCAR: '공급사 시정' }
+const STATUS = { IMPLEMENTING: '시행 중', MONITORING: '효과 확인 중', EFFECTIVE: '효과있음', NOT_EFFECTIVE: '효과없음' }
+const STATUS_TONE = { IMPLEMENTING: 'gray', MONITORING: 'blue', EFFECTIVE: 'green', NOT_EFFECTIVE: 'red' }
+const label = (map, v) => map[v] || v || '—'
 
 async function loadAlerts() {
   const t = tab.value
@@ -36,7 +44,10 @@ async function loadAlerts() {
 }
 
 watch(tab, loadAlerts, { immediate: true })
-onMounted(async () => (actions.value = await api('/recurrence/actions').catch(reportLoadError)))
+onMounted(async () => {
+  const res = await api('/recurrence/actions', { query: { size: 100 } }).catch(reportLoadError)
+  actions.value = res?.items ?? []
+})
 watch(selected, async (id) => {
   trend.value = null
   if (id) trend.value = await api(`/recurrence/actions/${id}/trend`).catch(reportLoadError)
@@ -88,29 +99,29 @@ async function openAlert(a) {
     router.push({ path: '/rmas', query: { open: a.rma_id } })
     return
   }
-  // 패턴 대상 → ③ 갱신
-  const cm = actions.value?.find((c) => c.recur_id === a.recur_id || a.target_label.startsWith(`${c.product} · ${c.defect_type}`))
-  if (cm) router.replace({ query: { ...route.query, recurId: cm.recur_id } })
+  // 대책 대상 알림 → 대책 전후 추이 갱신
+  const cm = a.recur_id && actions.value?.find((c) => c.corrective_action_id === a.recur_id)
+  if (cm) router.replace({ query: { ...route.query, recurId: cm.corrective_action_id } })
   loadAlerts()
 }
 
-const fmtRate = (v) => (v == null ? '—' : v.toFixed(2) + '%')
+const fmtNum = (v) => (v == null ? '—' : Number.isInteger(v) ? v : v.toFixed(2))
 
 // 대책 이력 필터 (드롭다운 값은 불러온 이력에서 만든다)
-const f = persistedRef('recurrence.actions', { product: '', actionType: '', status: '', result: '', recurrence: '' }) // 새로고침·이동 후에도 유지
-const uniq = (key) => [...new Set((actions.value || []).map((c) => c[key]).filter(Boolean))].sort()
-const RESULT_NONE = '결과 없음'
+const EMPTY_FILTER = { role: '', category: '', dept: '', status: '', recurrence: '' }
+const f = persistedRef('recurrence.actions.v2', { ...EMPTY_FILTER }) // 새로고침·이동 후에도 유지
+const opts = (key, map) => [...new Set((actions.value || []).map((c) => c[key]).filter(Boolean))].sort().map((v) => ({ value: v, label: map ? label(map, v) : v }))
 const filtered = computed(() =>
   (actions.value || []).filter((c) =>
-    (!f.value.product || c.product === f.value.product) &&
-    (!f.value.actionType || c.action_type === f.value.actionType) &&
-    (!f.value.status || c.status === f.value.status) &&
-    (!f.value.result || (c.action_result || RESULT_NONE) === f.value.result) &&
-    (!f.value.recurrence || (f.value.recurrence === 'yes') === c.recurrence),
+    (!f.value.role || c.action_role === f.value.role) &&
+    (!f.value.category || c.action_category === f.value.category) &&
+    (!f.value.dept || c.owner_dept === f.value.dept) &&
+    (!f.value.status || c.verification_status === f.value.status) &&
+    (!f.value.recurrence || (f.value.recurrence === 'yes') === c.recurrence_count > 0),
   ),
 )
 const filterOn = computed(() => Object.values(f.value).some(Boolean))
-const resetFilter = () => (f.value = { product: '', actionType: '', status: '', result: '', recurrence: '' })
+const resetFilter = () => (f.value = { ...EMPTY_FILTER })
 </script>
 
 <template>
@@ -178,48 +189,63 @@ const resetFilter = () => (f.value = { product: '', actionType: '', status: '', 
       </div>
     </Card>
 
-    <Card :title="selectedAction ? `대책 전후 발생 추이: ${selectedAction.recur_id} ${selectedAction.product} ${selectedAction.defect_type}` : '대책 전후 발생 추이'"
-      :description="selectedAction ? `${selectedAction.action_type} — ${selectedAction.action_detail}` : ''">
+    <Card :title="selectedAction ? `대책 전후 발생 추이: ${selectedAction.corrective_action_id} ${selectedAction.investigation_title}` : '대책 전후 발생 추이'"
+      :description="selectedAction ? `${label(ROLE, selectedAction.action_role)} · ${label(CATEGORY, selectedAction.action_category)} — ${selectedAction.description}` : ''">
       <Skeleton v-if="!trend" class="h-72" />
       <template v-else>
-        <p v-if="!trend.completed_dt" class="mb-2 rounded-md bg-muted px-3 py-1.5 text-xs text-muted-foreground">대책 완료 후 비교됩니다 (현재 진행 중)</p>
+        <p v-if="!trend.completed_dt" class="mb-2 rounded-md bg-muted px-3 py-1.5 text-xs text-muted-foreground">대책 시행 후 비교됩니다 (아직 시행 전)</p>
         <BeforeAfterChart :points="trend.points" :completed="fmtDate(trend.completed_dt)" :before-avg="trend.before_avg" :after-avg="trend.after_avg" />
         <div class="mt-4 grid grid-cols-4 gap-3 text-sm">
-          <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">불량률 전 → 후</p><p class="mt-1 font-semibold tabular">{{ fmtRate(trend.before_rate) }} → {{ fmtRate(trend.after_rate) }}</p></div>
-          <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">주간 평균 전 → 후</p><p class="mt-1 font-semibold tabular">{{ trend.before_avg ?? '—' }} → {{ trend.after_avg ?? '—' }}건</p></div>
-          <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">효과 점수</p><p class="mt-1 font-semibold tabular">{{ trend.effectiveness_score ?? '—' }}</p></div>
-          <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">최근 3주 추세</p><p class="mt-1 font-semibold" :class="{ 'text-red-600': trend.recent_trend === '증가', 'text-emerald-600': trend.recent_trend === '감소' }">{{ trend.recent_trend }}</p></div>
+          <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">주간 평균 접수 전 → 후</p><p class="mt-1 font-semibold tabular">{{ fmtNum(trend.before_avg) }} → {{ fmtNum(trend.after_avg) }}건</p></div>
+          <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">최근 3주 추세</p><p class="mt-1 font-semibold" :class="{ 'text-red-600': trend.recent_trend === '증가', 'text-emerald-600': trend.recent_trend === '감소' }">{{ trend.recent_trend || '—' }}</p></div>
+          <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">효과 판정</p><p class="mt-1"><Badge v-if="selectedAction" :tone="STATUS_TONE[selectedAction.verification_status]">{{ label(STATUS, selectedAction.verification_status) }}</Badge></p></div>
+          <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">확정 재발</p><p class="mt-1 font-semibold tabular" :class="{ 'text-red-600': selectedAction?.recurrence_count }">{{ selectedAction?.recurrence_count ?? 0 }}건</p></div>
         </div>
+        <!-- 효과 검증 지표: 기준 → 목표 / 조치 후 -->
+        <table v-if="trend.checks?.length" class="mt-4 w-full text-xs">
+          <thead class="text-muted-foreground">
+            <tr><th class="py-1.5 text-left font-medium">효과 검증 지표</th><th class="text-right font-medium">기준</th><th class="text-right font-medium">목표</th><th class="text-right font-medium">조치 후</th><th class="pl-3 text-left font-medium">결과</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="c in trend.checks" :key="c.check_id" class="border-t">
+              <td class="py-2 pr-3">{{ c.metric }}<span class="block text-[11px] text-muted-foreground">{{ fmtDate(c.window_from) }} ~ {{ fmtDate(c.window_to) }}</span></td>
+              <td class="text-right tabular">{{ fmtNum(c.baseline_value) }}</td>
+              <td class="text-right tabular">{{ fmtNum(c.target_value) }}</td>
+              <td class="text-right font-semibold tabular">{{ fmtNum(c.post_value) }}</td>
+              <td class="pl-3"><Badge :tone="STATUS_TONE[c.result] || 'gray'">{{ label(STATUS, c.result) }}</Badge></td>
+            </tr>
+          </tbody>
+        </table>
       </template>
     </Card>
 
     <Card title="대책 이력" :description="actions ? `행을 누르면 위 추이가 갱신됩니다 (${filtered.length} / ${actions.length}건)` : ''" :padded="false">
       <div class="flex flex-wrap items-center gap-2 px-5 pt-3">
-        <Select v-model="f.product" size="sm" placeholder="전체 제품" :options="uniq('product')" />
-        <Select v-model="f.actionType" size="sm" placeholder="전체 조치 유형" :options="uniq('action_type')" />
-        <Select v-model="f.status" size="sm" placeholder="전체 상태" :options="uniq('status')" />
-        <Select v-model="f.result" size="sm" placeholder="전체 결과" :options="[...uniq('action_result'), RESULT_NONE]" />
+        <Select v-model="f.role" size="sm" placeholder="전체 구분" :options="opts('action_role', ROLE)" />
+        <Select v-model="f.category" size="sm" placeholder="전체 조치 유형" :options="opts('action_category', CATEGORY)" />
+        <Select v-model="f.dept" size="sm" placeholder="전체 담당" :options="opts('owner_dept')" />
+        <Select v-model="f.status" size="sm" placeholder="전체 상태" :options="opts('verification_status', STATUS)" />
         <Select v-model="f.recurrence" size="sm" placeholder="재발 전체" :options="[{ value: 'yes', label: '재발 있음' }, { value: 'no', label: '재발 없음' }]" />
         <button v-if="filterOn" class="text-xs font-semibold text-muted-foreground hover:text-primary" @click="resetFilter">필터 초기화</button>
       </div>
       <div class="max-h-[520px] overflow-y-auto px-5 pb-4 pt-2">
         <Skeleton v-if="!actions" class="h-40" />
         <p v-else-if="!filtered.length" class="py-10 text-center text-sm text-muted-foreground">조건에 맞는 대책이 없습니다</p>
-        <table v-else class="w-full text-sm">
+        <!-- 짧은 칸은 한 줄로 두고, 조사명만 말줄임 -->
+        <table v-else class="w-full text-sm [&_td]:whitespace-nowrap [&_td]:pr-3 [&_th]:whitespace-nowrap [&_th]:pr-3">
           <thead class="text-xs text-muted-foreground">
-            <tr><th class="py-2 text-left font-medium">ID</th><th class="text-left font-medium">패턴</th><th class="text-left font-medium">제품 / 유형</th><th class="text-left font-medium">조치 유형</th><th class="text-left font-medium">상태</th><th class="text-left font-medium">완료일</th><th class="text-right font-medium">불량률 전→후</th><th class="pl-4 text-left font-medium">결과</th><th class="text-right font-medium">재발</th></tr>
+            <tr><th class="py-2 text-left font-medium">ID</th><th class="text-left font-medium">조사</th><th class="text-left font-medium">구분</th><th class="text-left font-medium">조치 유형</th><th class="text-left font-medium">담당</th><th class="text-left font-medium">상태</th><th class="text-left font-medium">시행일</th><th class="text-right font-medium">재발</th></tr>
           </thead>
           <tbody>
-            <tr v-for="c in filtered" :key="c.recur_id" :class="selected === c.recur_id ? 'bg-muted' : 'hover:bg-muted/50'" class="cursor-pointer border-t" @click="router.replace({ query: { ...route.query, recurId: c.recur_id } })">
-              <td class="py-2.5 font-medium">{{ c.recur_id }}</td>
-              <td class="py-2.5 text-muted-foreground">{{ c.pattern_id }}</td>
-              <td class="py-2.5">{{ c.product }} {{ c.defect_type }}</td>
-              <td class="py-2.5">{{ c.action_type }}</td>
-              <td class="py-2.5"><Badge :tone="c.status === '완료' ? 'green' : 'blue'">{{ c.status }}</Badge></td>
-              <td class="py-2.5 tabular">{{ fmtDate(c.completed_dt) }}</td>
-              <td class="py-2.5 text-right tabular">{{ fmtRate(c.before_rate) }} → {{ fmtRate(c.after_rate) }}</td>
-              <td class="py-2.5 pl-4"><Badge v-if="c.action_result" :tone="RESULT_TONE[c.action_result]">{{ c.action_result }}</Badge><span v-else class="text-muted-foreground">—</span></td>
-              <td class="py-2.5 text-right"><Badge v-if="c.recurrence" tone="purple">재발 {{ c.recurrence_count }}회</Badge><span v-else class="text-muted-foreground">없음</span></td>
+            <tr v-for="c in filtered" :key="c.corrective_action_id" :class="selected === c.corrective_action_id ? 'bg-muted' : 'hover:bg-muted/50'" class="cursor-pointer border-t" @click="router.replace({ query: { ...route.query, recurId: c.corrective_action_id } })">
+              <td class="py-2.5 font-medium">{{ c.corrective_action_id }}</td>
+              <td class="max-w-[220px] py-2.5"><span class="block truncate" :title="c.investigation_title">{{ c.investigation_title }}</span><span class="text-[11px] text-muted-foreground">{{ c.investigation_id }}</span></td>
+              <td class="py-2.5">{{ label(ROLE, c.action_role) }}</td>
+              <td class="py-2.5" :title="c.description">{{ label(CATEGORY, c.action_category) }}</td>
+              <td class="py-2.5 text-muted-foreground">{{ c.owner_dept }}</td>
+              <td class="py-2.5"><Badge :tone="STATUS_TONE[c.verification_status]">{{ label(STATUS, c.verification_status) }}</Badge></td>
+              <td class="py-2.5 tabular">{{ fmtDate(c.implemented_at) }}</td>
+              <td class="py-2.5 text-right"><Badge v-if="c.recurrence_count" tone="purple">재발 {{ c.recurrence_count }}건</Badge><span v-else class="text-muted-foreground">없음</span></td>
             </tr>
           </tbody>
         </table>

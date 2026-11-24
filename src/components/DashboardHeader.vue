@@ -21,6 +21,7 @@ const state = ref('loading') // loading | done | failed
 watch(
   () => [props.from, props.to, aiState.available],
   async () => {
+    if (!props.summaryPath) return // 요약 API가 없는 화면은 AI INSIGHT 줄을 숨긴다
     state.value = 'loading'
     try {
       summary.value = (await api(props.summaryPath, { query: { from: props.from, to: props.to } })).summary
@@ -64,9 +65,10 @@ const source = computed(() => (aiState.provider?.startsWith('gemini') ? 'Gemini 
       <Button variant="outline" size="sm" :disabled="editing" @click="$emit('edit')"><Settings2 class="size-3.5" />위젯 편집</Button>
     </template>
   </PageHead>
-  <div class="mb-6 flex items-center gap-4 rounded-[14px] border border-[#f6d4db] bg-card px-5 py-3.5 shadow-[0_2px_12px_#ea002c0d]">
-    <span class="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-soft text-primary"><Sparkles class="size-[18px]" /></span>
-    <span class="shrink-0 text-[12px] font-extrabold tracking-[0.8px] text-primary">AI INSIGHT</span>
+  <!-- AI 요약 줄: 테두리 하나로만 구분 (붉은 그림자는 쓰지 않는다) -->
+  <div v-if="summaryPath" class="mb-6 flex items-center gap-3.5 rounded-[14px] border border-[#f3d6dc] bg-card px-5 py-3.5">
+    <span class="grid size-8 shrink-0 place-items-center rounded-[9px] bg-brand-soft text-primary"><Sparkles class="size-4" /></span>
+    <span class="shrink-0 text-[13px] font-bold text-primary">AI INSIGHT</span>
     <Skeleton v-if="state === 'loading'" class="h-4 flex-1" />
     <p v-else-if="state === 'done'" class="min-w-0 text-sm leading-relaxed text-[#3a404b]">
       <template v-for="(x, i) in parts" :key="i">

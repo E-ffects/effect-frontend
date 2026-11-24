@@ -40,7 +40,7 @@ const toneCls = {
     class="group flex min-h-[112px] flex-col rounded-xl border px-4 pb-3.5 pt-4 text-left transition"
     :class="[
       performance ? 'border-perf-line bg-perf' : 'bg-card',
-      clickable ? 'hover:-translate-y-0.5 hover:border-brand-line hover:shadow-[0_6px_20px_#242b3710]' : '',
+      clickable ? 'hover:border-[#cfd3da] hover:bg-[#fcfcfd]' : '',
       formula ? 'h-full w-full cursor-help hover:border-[#f0c9ac] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sk-orange/50' : '',
     ]"
     @click="clickable && $emit('click')"

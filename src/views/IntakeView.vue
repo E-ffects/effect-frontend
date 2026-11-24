@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, FileText, Paperclip, Send, X } from 'lucide-vue-next'
+import { ArrowRight, Paperclip, Send, X } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import SubmitButton from '@/components/ui/SubmitButton.vue'
 import FileDrop from '@/components/ui/FileDrop.vue'
@@ -236,7 +236,11 @@ const optCls = 'font-normal text-muted-foreground'
         />
         <div v-else-if="rawFile" class="rounded-lg border bg-muted/40">
           <div class="flex items-center gap-2 border-b px-3 py-2.5">
-            <FileText class="size-4 shrink-0 text-muted-foreground" />
+            <!-- 첨부 완료 표시: 초록 원 + 흰 체크 (FileDrop 완료 모습과 같게) -->
+            <span class="grid size-5 shrink-0 place-items-center rounded-full bg-[#1f9d6b] text-white" title="첨부 완료">
+              <svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+            </span>
+            <span class="sr-only">첨부 완료:</span>
             <span class="truncate text-sm font-semibold">{{ rawFile.name }}</span>
             <span class="shrink-0 text-xs text-muted-foreground tabular">{{ kb(rawFile.size) }}</span>
             <button type="button" class="ml-auto grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-card hover:text-foreground" aria-label="원문 파일 빼기" @click="rawFile = null; rawPreview = ''; rawShown = false"><X class="size-4" /></button>

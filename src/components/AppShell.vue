@@ -64,7 +64,8 @@ function logout() {
 <template>
   <div class="min-h-screen">
     <header class="sticky top-0 z-30 border-b border-[#eceef1] bg-white/90 backdrop-blur-md">
-      <div class="mx-auto flex h-16 max-w-[1480px] items-stretch gap-10 px-6">
+      <!-- 헤더·본문·바닥글 모두 왼쪽 24px에서 시작: 에이전트 패널이 열려도 로고와 본문 왼쪽 끝이 같은 선에 있다 -->
+      <div class="flex h-16 items-stretch gap-10 px-6">
         <RouterLink to="/" class="flex items-center"><BrandMark /></RouterLink>
         <!-- 메뉴: 글자는 검정 계열, 선택 표시는 빨간 밑줄 하나만 -->
         <nav class="flex items-stretch gap-1" aria-label="주 메뉴">
@@ -109,7 +110,7 @@ function logout() {
         </div>
       </div>
       <div v-if="!aiState.available" class="border-t border-amber-200 bg-amber-50">
-        <div class="mx-auto flex max-w-[1480px] items-center gap-2 px-6 py-2 text-xs text-amber-800">
+        <div class="flex items-center gap-2 px-6 py-2 text-xs text-amber-800">
           <AlertTriangle class="size-3.5" />
           <b>AI 일시 불가</b> — AI 요약과 보고서 생성이 잠시 중단되었습니다. RMA 조회, 검색, 대시보드 집계는 정상 동작합니다. (60초마다 자동 재확인)
         </div>
@@ -118,10 +119,10 @@ function logout() {
     <!-- 왼쪽 업무 화면 + 오른쪽 에이전트 패널 (데스크톱에서는 나란히, 좁은 화면에서는 패널이 위에 뜬다) -->
     <div class="flex items-start">
       <div class="min-w-0 flex-1">
-        <main class="mx-auto max-w-[1480px] px-6 py-7">
+        <main class="max-w-[1480px] px-6 py-7">
           <slot />
         </main>
-        <footer class="mx-auto flex max-w-[1480px] justify-between px-6 pb-8 text-[12px] text-[#6f7684]">
+        <footer class="flex max-w-[1480px] justify-between px-6 pb-8 text-[12px] text-[#6f7684]">
           <span>© 2026 E!ffect. RMA Intelligence Workspace.</span>
           <span>PCB RMA v5 · 기준일 {{ referenceDate }}</span>
         </footer>

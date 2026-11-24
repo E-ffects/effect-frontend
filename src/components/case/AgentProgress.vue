@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
 import { AGENT_STEPS } from '@/lib/caseLabels'
+import AgentStepper from './AgentStepper.vue'
 
 // 에이전트 7단계 진행 (AI 명세 trace 순서). Kokonut UI "AI Loading State"(Agent steps, MIT)를 Vue로 옮겼다.
 // - 머리줄: 지금 단계 이름 + 경과 시간, 끝나면 "n초 동안 분석 · 7단계". 누르면 목록을 접고 편다
@@ -72,7 +73,8 @@ watch(
   { immediate: true },
 )
 const fmtStep = (ms) => (ms < 1000 ? `${ms}ms` : ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 1000)}s`)
-const stepTime = (s) => (times.value[s.id] != null ? fmtStep(times.value[s.id]) : s.status === 'done' && s.traceMs != null ? fmtStep(s.traceMs) : null)
+// 기록(trace)이 오면 모든 단계를 에이전트가 실제로 쓴 시간으로 통일한다. 진행 중에는 이 화면에서 지켜본 시간
+const stepTime = (s) => (s.status === 'done' && s.traceMs != null ? fmtStep(s.traceMs) : times.value[s.id] != null ? fmtStep(times.value[s.id]) : null)
 const fmtDuration = (sec) => (sec < 60 ? `${sec}초` : `${Math.floor(sec / 60)}분 ${String(sec % 60).padStart(2, '0')}초`)
 
 const title = computed(() => {
@@ -83,12 +85,17 @@ const title = computed(() => {
 })
 
 // 처음부터 끝나 있던 분석은 접힌 채로. 지켜보던 분석은 마지막 체크가 그려진 뒤 접는다
+// (화면이 먼저 그려지고 분석 데이터가 늦게 오는 경우도 '처음부터 끝나 있던 분석'으로 본다: 진행을 지켜본 적이 있을 때만 움직인다)
 const open = ref(!isDone.value)
+const watched = ref(isActive.value)
+watch(isActive, (on) => on && (watched.value = true))
 let foldTimer = null
-watch(isDone, (done, was) => {
+watch(isDone, (done) => {
   clearTimeout(foldTimer)
-  if (done && was === false) foldTimer = setTimeout(() => (open.value = false), 600)
-  if (!done) open.value = true
+  if (done) {
+    if (watched.value) foldTimer = setTimeout(() => (open.value = false), 600)
+    else open.value = false
+  } else open.value = true
 })
 
 onBeforeUnmount(() => {
@@ -105,7 +112,9 @@ const LABEL_CLS = {
 </script>
 
 <template>
-  <div class="max-w-[640px]">
+  <!-- 위: 7개 에이전트 가로 진행 막대(요약, 늘 보임) / 아래: 단계별 작업 기록(끝나면 한 줄로 접힘) -->
+  <AgentStepper :steps="steps.map((s) => ({ ...s, time: stepTime(s) }))" :running="isActive" :live="watched" />
+  <div class="mt-3 max-w-[640px] border-t border-[#eef0f3] pt-3">
     <button
       type="button"
       class="group flex w-full items-center gap-2 rounded-md py-1 text-left text-sm font-semibold text-[#3b404a]"

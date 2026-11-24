@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, FileText, Paperclip, Send, Upload, X } from 'lucide-vue-next'
+import { ArrowRight, FileText, Paperclip, Send, X } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
 import SubmitButton from '@/components/ui/SubmitButton.vue'
+import FileDrop from '@/components/ui/FileDrop.vue'
 import Card from '@/components/ui/Card.vue'
 import Input from '@/components/ui/Input.vue'
 import Select from '@/components/ui/Select.vue'
@@ -26,7 +27,6 @@ const form = reactive({
 const rawFile = ref(null)
 const rawPreview = ref('')
 const others = ref([])
-const dragging = ref(false)
 const tried = ref(false)
 const saving = ref(false)
 const serverError = ref('')
@@ -59,10 +59,18 @@ const err = (k) => (tried.value ? errors.value[k] : '')
 const valid = computed(() => !Object.values(errors.value).some(Boolean))
 
 const ext = (name) => name.slice(name.lastIndexOf('.')).toLowerCase()
+// 원문 파일: 확인을 통과하면 true (FileDrop이 첨부 움직임을 보여 준 뒤 미리보기로 바뀐다)
+const rawShown = ref(false)
 async function setRaw(file) {
-  if (!file) return
-  if (!RAW_EXT.includes(ext(file.name))) return toast({ title: '원문은 .eml, .txt, .pdf 파일만 올릴 수 있습니다', tone: 'red' })
-  if (file.size > MAX_BYTES) return toast({ title: '20MB 이하 파일만 올릴 수 있습니다', tone: 'red' })
+  if (!file) return false
+  if (!RAW_EXT.includes(ext(file.name))) {
+    toast({ title: '원문은 .eml, .txt, .pdf 파일만 올릴 수 있습니다', tone: 'red' })
+    return false
+  }
+  if (file.size > MAX_BYTES) {
+    toast({ title: '20MB 이하 파일만 올릴 수 있습니다', tone: 'red' })
+    return false
+  }
   rawFile.value = file
   rawPreview.value = ''
   if (ext(file.name) !== '.pdf') {
@@ -70,10 +78,7 @@ async function setRaw(file) {
     const i = ext(file.name) === '.eml' ? t.search(/\r?\n\r?\n/) : -1
     rawPreview.value = (i > 0 ? t.slice(i) : t).replace(/<[^>]+>/g, ' ').trim().slice(0, 1200)
   }
-}
-function onDrop(e) {
-  dragging.value = false
-  setRaw(e.dataTransfer.files?.[0])
+  return true
 }
 function addOthers(list) {
   const ok = [...list].filter((f) => f.size <= MAX_BYTES)
@@ -219,23 +224,22 @@ const optCls = 'font-normal text-muted-foreground'
         </div>
         <p :class="hintCls" class="mb-3">고객이 보낸 메일·통보문 파일을 그대로 올립니다. 요약해서 옮겨 적지 않습니다. 증상 분류의 근거가 됩니다.</p>
 
-        <label
-          v-if="!rawFile"
-          :class="[dragging ? 'border-primary bg-brand-soft' : 'hover:border-[#c9ced6]', err('raw_file') ? 'border-destructive' : '']"
-          class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-9 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
-          @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="onDrop"
-        >
-          <Upload class="size-6 text-muted-foreground" />
-          <span class="text-sm font-semibold">원문 파일을 끌어다 놓거나 눌러서 고르세요</span>
-          <span :class="hintCls">고객 메일(.eml) 권장</span>
-          <input type="file" accept=".eml,.txt,.pdf" class="sr-only" @change="setRaw($event.target.files[0])" />
-        </label>
-        <div v-else class="rounded-lg border bg-muted/40">
+        <!-- 끌어다 놓으면 동그라미가 삼키고 고리가 찬 뒤 초록 체크 (FileDrop) → 미리보기로 바뀐다 -->
+        <FileDrop
+          v-if="!rawShown"
+          accept=".eml,.txt,.pdf"
+          :check="setRaw"
+          :error="!!err('raw_file')"
+          title="원문 파일을 끌어다 놓거나 눌러서 고르세요"
+          hint="고객 메일(.eml) 권장"
+          @finished="rawShown = true"
+        />
+        <div v-else-if="rawFile" class="rounded-lg border bg-muted/40">
           <div class="flex items-center gap-2 border-b px-3 py-2.5">
             <FileText class="size-4 shrink-0 text-muted-foreground" />
             <span class="truncate text-sm font-semibold">{{ rawFile.name }}</span>
             <span class="shrink-0 text-xs text-muted-foreground tabular">{{ kb(rawFile.size) }}</span>
-            <button type="button" class="ml-auto grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-card hover:text-foreground" aria-label="원문 파일 빼기" @click="rawFile = null; rawPreview = ''"><X class="size-4" /></button>
+            <button type="button" class="ml-auto grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-card hover:text-foreground" aria-label="원문 파일 빼기" @click="rawFile = null; rawPreview = ''; rawShown = false"><X class="size-4" /></button>
           </div>
           <p v-if="rawPreview" class="max-h-44 overflow-y-auto whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed">{{ rawPreview }}</p>
           <p v-else class="px-4 py-3 text-xs text-muted-foreground">PDF는 서버가 텍스트를 추출합니다.</p>

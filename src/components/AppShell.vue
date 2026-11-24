@@ -62,7 +62,7 @@ function logout() {
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div class="min-h-screen overflow-x-clip">
     <header class="sticky top-0 z-30 border-b border-[#eceef1] bg-white/90 backdrop-blur-md">
       <!-- 헤더·본문·바닥글 모두 왼쪽 24px에서 시작: 에이전트 패널이 열려도 로고와 본문 왼쪽 끝이 같은 선에 있다 -->
       <div class="flex h-16 items-stretch gap-10 px-6">
@@ -119,10 +119,11 @@ function logout() {
     <!-- 왼쪽 업무 화면 + 오른쪽 에이전트 패널 (데스크톱에서는 나란히, 좁은 화면에서는 패널이 위에 뜬다) -->
     <div class="flex items-start">
       <div class="min-w-0 flex-1">
-        <main class="max-w-[1480px] px-6 py-7">
+        <!-- 본문은 남는 폭을 다 쓴다: 에이전트 패널을 접으면 그만큼 넓어지고 오른쪽에 빈칸이 생기지 않는다 -->
+        <main class="px-6 py-7">
           <slot />
         </main>
-        <footer class="flex max-w-[1480px] justify-between px-6 pb-8 text-[12px] text-[#6f7684]">
+        <footer class="flex justify-between px-6 pb-8 text-[12px] text-[#6f7684]">
           <span>© 2026 E!ffect. RMA Intelligence Workspace.</span>
           <span>PCB RMA v5 · 기준일 {{ referenceDate }}</span>
         </footer>

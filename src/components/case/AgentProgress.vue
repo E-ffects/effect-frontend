@@ -1,106 +1,131 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { ChevronDown } from 'lucide-vue-next'
+import { ChevronDown, RotateCcw } from 'lucide-vue-next'
 import { AGENT_STEPS } from '@/lib/caseLabels'
 import AgentStepper from './AgentStepper.vue'
 
 // 에이전트 7단계 진행 (AI 명세 trace 순서). Kokonut UI "AI Loading State"(Agent steps, MIT)를 Vue로 옮겼다.
-// - 머리줄: 지금 단계 이름 + 경과 시간, 끝나면 "n초 동안 분석 · 7단계". 누르면 목록을 접고 편다
-// - 단계: 대기(점) → 진행(회전 + 이름에 밝기 물결) → 완료(체크가 그려짐), 단계 사이 선이 위에서부터 채워진다
-// - 단계별 시간: 이 화면에서 지켜본 경우 실제로 걸린 시간, 아니면 trace의 elapsed_ms
-// - 완료 단계 아래에는 trace의 실제 작업 기록(action)을 한 줄로
-// - 모두 끝나면 목록이 접힌다 (처음부터 끝나 있던 분석은 접힌 채로 시작)
+// 화면 진행(shown)은 실제 진행(doneCount)을 한 단계씩 따라간다: 실제 분석이 순식간에 끝나도
+// 막대와 기록이 0.86초마다 한 칸씩(7단계 약 6초) 차례로 나온다.
+// - 이번 세션에서 처음 보는 분석: 0단계부터 따라간다
+// - 이미 본 분석: 바로 완료 상태(기록은 접힌 채). "다시 보기"로 다시 재생
+// - 시간 표시: 재생 속도는 보여 주기용. 단계 옆 시간과 합계는 에이전트가 실제로 쓴 시간(trace elapsed_ms)
 const props = defineProps({ analysis: Object })
 
+const STEP_MS = 860
+const LOG_LAG_MS = 550 // 막대가 먼저 차고, 아래 기록은 한 박자 늦게 내려온다
+const N = AGENT_STEPS.length
+const SEEN_KEY = 'rma.agentReplayed'
+const seenIds = () => new Set(JSON.parse(sessionStorage.getItem(SEEN_KEY) || '[]'))
+const markSeen = (id) => {
+  const set = seenIds()
+  set.add(id)
+  sessionStorage.setItem(SEEN_KEY, JSON.stringify([...set].slice(-200)))
+}
+
 const state = computed(() => props.analysis?.analysis_state || 'NOT_REQUESTED')
+const analysisId = computed(() => props.analysis?.analysis_id || null)
 const trace = computed(() => props.analysis?.trace || [])
 const isDone = computed(() => ['SUCCEEDED', 'PARTIAL'].includes(state.value))
-const isActive = computed(() => ['QUEUED', 'RUNNING'].includes(state.value))
 const doneCount = computed(() => {
-  if (isDone.value) return AGENT_STEPS.length
+  if (isDone.value) return N
   if (state.value === 'RUNNING' || state.value === 'FAILED') return props.analysis?.progress?.steps_done ?? 0
   return 0
 })
 
-const steps = computed(() =>
+// 화면에 보이는 진행 칸 수: shown = 위 막대, logShown = 아래 기록(한 박자 늦게 따라감)
+const shown = ref(0)
+const logShown = ref(0)
+let logTimers = []
+watch(shown, (n) => {
+  if (instant.value || n < logShown.value) {
+    logTimers.forEach(clearTimeout)
+    logTimers = []
+    logShown.value = n
+    return
+  }
+  logTimers.push(setTimeout(() => (logShown.value = Math.max(logShown.value, n)), LOG_LAG_MS))
+})
+const instant = ref(false) // true면 움직임 없이 바로 그린다(이미 본 분석)
+const open = ref(true)
+let chaseTimer = null
+const chasing = computed(() => shown.value < doneCount.value)
+
+function chase() {
+  clearTimeout(chaseTimer)
+  if (shown.value >= doneCount.value) {
+    if (shown.value === N && analysisId.value) markSeen(analysisId.value)
+    return
+  }
+  chaseTimer = setTimeout(() => {
+    shown.value += 1
+    chase()
+  }, STEP_MS)
+}
+
+function replay() {
+  instant.value = false
+  shown.value = 0
+  logShown.value = 0
+  open.value = true
+  chase()
+}
+
+// 분석이 바뀌면(새 분석·재분석·데이터 도착) 처음부터 다시 정한다
+watch(
+  analysisId,
+  (id) => {
+    clearTimeout(chaseTimer)
+    if (id && isDone.value && seenIds().has(id)) {
+      instant.value = true
+      shown.value = N
+      logShown.value = N
+      open.value = false
+      return
+    }
+    instant.value = false
+    shown.value = 0
+    open.value = true
+    chase()
+  },
+  { immediate: true },
+)
+// 실제 진행이 늘면 따라간다 (줄어들면 = 새 실행, 처음부터)
+watch(doneCount, (n) => {
+  if (n < shown.value) shown.value = 0
+  if (!instant.value) chase()
+})
+onBeforeUnmount(() => {
+  clearTimeout(chaseTimer)
+  logTimers.forEach(clearTimeout)
+})
+
+const stepsAt = (count) =>
   AGENT_STEPS.map((s, i) => {
     let status = 'pending'
-    if (i < doneCount.value) status = 'done'
-    else if (i === doneCount.value && state.value === 'RUNNING') status = 'running'
-    else if (i === doneCount.value && state.value === 'FAILED') status = 'error'
+    if (i < count) status = 'done'
+    else if (i === count) {
+      if (count < doneCount.value || state.value === 'RUNNING') status = 'running'
+      else if (state.value === 'FAILED') status = 'error'
+    }
     const t = trace.value[i]
     return { id: i, name: s.label, desc: s.desc, label: `${s.label} · ${s.desc}`, status, action: t?.action, traceMs: t?.elapsed_ms }
-  }),
-)
+  })
+const barSteps = computed(() => stepsAt(shown.value))
+const steps = computed(() => stepsAt(logShown.value)) // 아래 기록과 머리줄은 기록 기준
 const running = computed(() => steps.value.find((s) => s.status === 'running'))
 const failed = computed(() => steps.value.find((s) => s.status === 'error'))
+const finished = computed(() => isDone.value && logShown.value === N)
 
-// 경과 시간: 진행을 처음 본 순간부터. 끝나면 멈춘다
-const seconds = ref(0)
-let startedAt = null
-let tickTimer = null
-watch(
-  isActive,
-  (on) => {
-    clearInterval(tickTimer)
-    if (!on) return
-    startedAt ??= Date.now()
-    const tick = () => (seconds.value = Math.floor((Date.now() - startedAt) / 1000))
-    tick()
-    tickTimer = setInterval(tick, 500)
-  },
-  { immediate: true },
-)
-
-// 단계별 시간: 진행으로 바뀐 순간 ~ 완료로 바뀐 순간
-const starts = {}
-const times = ref({})
-watch(
-  steps,
-  (list) => {
-    const now = Date.now()
-    for (const s of list) {
-      if (s.status === 'pending') {
-        delete starts[s.id]
-        continue
-      }
-      if (s.status === 'running') starts[s.id] ??= now
-      if ((s.status === 'done' || s.status === 'error') && starts[s.id] != null && times.value[s.id] == null) {
-        times.value = { ...times.value, [s.id]: now - starts[s.id] }
-      }
-    }
-  },
-  { immediate: true },
-)
-const fmtStep = (ms) => (ms < 1000 ? `${ms}ms` : ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 1000)}s`)
-// 기록(trace)이 오면 모든 단계를 에이전트가 실제로 쓴 시간으로 통일한다. 진행 중에는 이 화면에서 지켜본 시간
-const stepTime = (s) => (s.status === 'done' && s.traceMs != null ? fmtStep(s.traceMs) : times.value[s.id] != null ? fmtStep(times.value[s.id]) : null)
-const fmtDuration = (sec) => (sec < 60 ? `${sec}초` : `${Math.floor(sec / 60)}분 ${String(sec % 60).padStart(2, '0')}초`)
+const fmtMs = (ms) => (ms < 1000 ? `${ms}ms` : ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 1000)}s`)
+const stepTime = (s) => (s.status === 'done' && s.traceMs != null ? fmtMs(s.traceMs) : null)
+const totalMs = computed(() => (trace.value.length ? trace.value.reduce((a, t) => a + (t.elapsed_ms || 0), 0) : null))
 
 const title = computed(() => {
   if (failed.value) return `멈춘 단계: ${failed.value.label}`
-  if (isDone.value) return seconds.value > 0 ? `${fmtDuration(seconds.value)} 동안 분석` : '분석 완료'
+  if (finished.value) return '분석 완료'
   if (running.value) return running.value.label
   return '분석 준비 중'
-})
-
-// 처음부터 끝나 있던 분석은 접힌 채로. 지켜보던 분석은 마지막 체크가 그려진 뒤 접는다
-// (화면이 먼저 그려지고 분석 데이터가 늦게 오는 경우도 '처음부터 끝나 있던 분석'으로 본다: 진행을 지켜본 적이 있을 때만 움직인다)
-const open = ref(!isDone.value)
-const watched = ref(isActive.value)
-watch(isActive, (on) => on && (watched.value = true))
-let foldTimer = null
-watch(isDone, (done) => {
-  clearTimeout(foldTimer)
-  if (done) {
-    if (watched.value) foldTimer = setTimeout(() => (open.value = false), 600)
-    else open.value = false
-  } else open.value = true
-})
-
-onBeforeUnmount(() => {
-  clearInterval(tickTimer)
-  clearTimeout(foldTimer)
 })
 
 const LABEL_CLS = {
@@ -112,26 +137,37 @@ const LABEL_CLS = {
 </script>
 
 <template>
-  <!-- 위: 7개 에이전트 가로 진행 막대(요약, 늘 보임) / 아래: 단계별 작업 기록(끝나면 한 줄로 접힘) -->
-  <AgentStepper :steps="steps.map((s) => ({ ...s, time: stepTime(s) }))" :running="isActive" :live="watched" />
+  <!-- 위: 7개 에이전트 가로 진행 막대(요약, 늘 보임) / 아래: 단계별 작업 기록 -->
+  <AgentStepper :steps="barSteps.map((s) => ({ ...s, time: stepTime(s) }))" :running="barSteps.some((s) => s.status === 'running')" :live="!instant" />
   <div class="mt-3 max-w-[640px] border-t border-[#eef0f3] pt-3">
-    <button
-      type="button"
-      class="group flex w-full items-center gap-2 rounded-md py-1 text-left text-sm font-semibold text-[#3b404a]"
-      :aria-expanded="open"
-      aria-controls="agent-steps"
-      @click="open = !open"
-    >
-      <!-- output = 현재 단계를 화면 낭독기가 읽어 준다 -->
-      <output class="min-w-0 truncate">{{ title }}</output>
-      <span v-if="isActive" class="font-medium text-[#9aa0aa] tabular">{{ fmtDuration(seconds) }}</span>
-      <span v-if="isDone" class="font-medium text-[#9aa0aa]">· {{ steps.length }}단계</span>
-      <ChevronDown
-        aria-hidden="true"
-        :class="open ? 'rotate-180' : ''"
-        class="ml-auto size-4 text-[#9aa0aa] transition-transform duration-200 ease-[var(--ease-out)] group-hover:text-[#4a505c]"
-      />
-    </button>
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        class="group flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-left text-sm font-semibold text-[#3b404a]"
+        :aria-expanded="open"
+        aria-controls="agent-steps"
+        @click="open = !open"
+      >
+        <!-- output = 현재 단계를 화면 낭독기가 읽어 준다 -->
+        <output class="min-w-0 truncate">{{ title }}</output>
+        <span v-if="!finished && !failed" class="shrink-0 font-medium text-[#9aa0aa] tabular">{{ Math.min(logShown + 1, N) }}/{{ N }}단계</span>
+        <span v-if="finished" class="shrink-0 font-medium text-[#9aa0aa]">· {{ N }}단계<template v-if="totalMs != null"> · 에이전트 처리 {{ fmtMs(totalMs) }}</template></span>
+        <ChevronDown
+          aria-hidden="true"
+          :class="open ? 'rotate-180' : ''"
+          class="ml-auto size-4 shrink-0 text-[#9aa0aa] transition-transform duration-200 ease-[var(--ease-out)] group-hover:text-[#4a505c]"
+        />
+      </button>
+      <button
+        v-if="finished"
+        type="button"
+        class="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[#6b717d] transition-colors hover:bg-muted hover:text-[#111]"
+        title="에이전트 진행을 처음부터 다시 봅니다 (실제 처리 시간과 무관한 보기용 재생)"
+        @click="replay"
+      >
+        <RotateCcw class="size-3.5" aria-hidden="true" />다시 보기
+      </button>
+    </div>
 
     <div class="fold" :data-open="open">
       <ol id="agent-steps" aria-label="에이전트 진행 단계">
@@ -181,7 +217,8 @@ const LABEL_CLS = {
               </Transition>
             </div>
             <!-- 완료된 단계: trace의 실제 작업 기록 -->
-            <Transition enter-from-class="opacity-0" enter-active-class="transition-opacity duration-200 ease-[var(--ease-out)]">
+            <!-- 한 박자 늦게, 위에서 살짝 내려오며 -->
+            <Transition enter-from-class="opacity-0 -translate-y-2" enter-active-class="transition-[opacity,translate] duration-[280ms] ease-[var(--ease-out)]">
               <p v-if="s.status === 'done' && s.action" class="mt-0.5 truncate text-[12px] leading-[18px] text-[#8b919c]" :title="s.action">{{ s.action }}</p>
             </Transition>
           </div>

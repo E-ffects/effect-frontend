@@ -113,6 +113,12 @@ function applyPeriod({ from, to }) {
   search()
 }
 
+// 불량 유형 알약 탭: 누르면 바로 검색 (다른 입력 중인 조건도 함께 적용)
+function pickMajor(name) {
+  draft.value.defectType = name
+  search()
+}
+
 function reset() {
   router.push({ query: { size: route.query.size } })
 }
@@ -217,15 +223,27 @@ const labelOf = (key) => ALL_COLUMNS.find((c) => c.key === key)?.label || key
       <Button type="button" variant="outline" :loading="exporting" :disabled="!data?.total" @click="exportCsv"><Download class="size-4" />내보내기</Button>
     </div>
     <Select v-model="draft.product" placeholder="제품 전체" :options="(meta?.products || []).map((p) => ({ value: p.part_no, label: p.part_no }))" />
-    <Select v-model="draft.defectType" placeholder="불량 유형 전체" :options="MAJORS" />
     <Select v-model="draft.classification" placeholder="분류 상태 전체" :options="toOptions(CLASSIFICATION)" />
     <Select v-model="draft.status" placeholder="처리 상태 전체" :options="toOptions(CS_STATUS)" />
     <template v-if="quality">
       <Select v-model="draft.severity" placeholder="심각도 전체" :options="SEVERITIES" />
       <Select v-model="draft.recurrence" placeholder="재발 판정 전체" :options="toOptions(RECURRENCE)" />
     </template>
-    <DateRange :class="quality ? 'col-span-2' : 'col-span-4'" block clearable align="right" placeholder="접수 기간 전체" :max-days="Infinity" :from="draft.from" :to="draft.to" @apply="applyPeriod" />
+    <DateRange :class="quality ? 'col-span-4' : 'col-span-6'" block clearable align="right" placeholder="접수 기간 전체" :max-days="Infinity" :from="draft.from" :to="draft.to" @apply="applyPeriod" />
   </form>
+
+  <!-- 불량 유형(대분류) 알약 탭: 선택된 것만 진한 테두리 (SK AX Use Case 분류 탭 참고) -->
+  <div role="tablist" aria-label="불량 유형" class="mb-4 mt-1 flex flex-wrap items-center gap-1">
+    <button
+      v-for="m in ['', ...MAJORS]" :key="m || 'all'" type="button" role="tab"
+      :aria-selected="(route.query.defectType || '') === m"
+      :class="(route.query.defectType || '') === m ? 'border-[#111] bg-white font-bold text-[#111]' : 'border-transparent font-medium text-[#6b717d] hover:text-[#111]'"
+      class="rounded-full border px-3.5 py-1 text-sm transition-colors"
+      @click="pickMajor(m)"
+    >
+      {{ m || '전체' }}
+    </button>
+  </div>
 
   <div class="mb-3 flex min-h-7 flex-wrap items-center gap-1.5">
     <span v-if="sorts.length" class="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-brand-soft px-2.5 py-1 text-xs">

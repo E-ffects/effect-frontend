@@ -7,7 +7,7 @@
   --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --color-background: #f7f8fa;
   --color-card: #ffffff;
-  --color-border: #e9ebef;
+  --color-border: #eaecf0;
   --color-input: #dfe2e7;
   --color-ring: #ea002c;
   --color-foreground: #20232b;
@@ -59,6 +59,48 @@
   }
   button:disabled {
     cursor: not-allowed;
+  }
+  /* 브라우저 기본 요소도 브랜드 톤으로: 선택 영역, 입력 커서, 키보드 포커스, 스크롤바 */
+  ::selection {
+    background: #fcd5dc;
+    color: #111;
+  }
+  input,
+  textarea {
+    caret-color: var(--color-primary);
+  }
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+    outline-offset: 2px;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d4d7dd transparent;
+  }
+}
+
+/* 세그먼트 탭(케이스 결과·원인 판정 상태·고객 요청 등): 회색 트랙 위에 선택된 칸만 흰 카드로 */
+@layer components {
+  .seg {
+    display: flex;
+    gap: 2px;
+    border-radius: 12px;
+    background: #eff1f4;
+    padding: 3px;
+  }
+  .seg-item {
+    border-radius: 9px;
+    color: #6b717d;
+    transition: color 0.15s, background-color 0.15s, box-shadow 0.15s;
+  }
+  .seg-item:hover {
+    color: #111;
+  }
+  .seg-item[aria-selected='true'],
+  .seg-item:has(input:checked) {
+    background: #fff;
+    color: #111;
+    box-shadow: 0 1px 3px rgb(16 24 40 / 0.08);
   }
 }
 

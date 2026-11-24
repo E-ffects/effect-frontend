@@ -47,11 +47,10 @@ function pickTab(k) {
 <template>
   <PageHead title="원인 판정" :crumb="false" description="L3는 원인 후보를 채택하고 승인해야, L1·L2는 확인해야 확정 원인이 됩니다. 임시 QA 판정은 확인해야 원인분석이 시작됩니다." />
 
-  <div class="mb-3 flex w-fit flex-wrap gap-1 rounded-lg border bg-card p-1" role="tablist">
+  <div class="seg mb-4 w-fit flex-wrap" role="tablist">
     <button
       v-for="t in TABS" :key="t.k" role="tab" :aria-selected="tab === t.k"
-      :class="tab === t.k ? 'bg-primary text-primary-foreground' : 'text-[#4a505c] hover:bg-muted'"
-      class="rounded-md px-3.5 py-1.5 text-[13px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      class="seg-item px-3.5 py-1.5 text-[13px] font-semibold"
       @click="pickTab(t.k)"
     >{{ t.l }}</button>
   </div>

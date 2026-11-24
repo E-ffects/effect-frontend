@@ -51,15 +51,18 @@ const tab = ref('cause')
 
 <template>
   <div class="grid gap-4">
-    <nav role="tablist" aria-label="분석 결과" class="grid grid-cols-5 gap-1 rounded-[14px] border bg-card p-1">
+    <!-- 회색 트랙 위 세그먼트 탭: 선택된 탭만 흰 카드로 떠 보이게 -->
+    <nav role="tablist" aria-label="분석 결과" class="seg grid grid-cols-5">
       <button
         v-for="t in TABS" :key="t.key" role="tab" :aria-selected="tab === t.key"
-        class="rounded-[10px] px-3 py-2 text-left transition-colors"
-        :class="tab === t.key ? 'bg-[#fff1f3] text-primary' : 'text-[#3b404a] hover:bg-muted'"
+        class="seg-item min-w-0 px-3 py-2.5 text-left"
         @click="tab = t.key"
       >
-        <span class="block text-sm font-bold">{{ t.label }} <span class="text-xs font-semibold opacity-70 tabular">· {{ t.note }}</span></span>
-        <span class="block text-[11px] font-medium opacity-70">{{ t.sub }}</span>
+        <span class="flex items-baseline gap-1.5 whitespace-nowrap">
+          <span class="text-sm font-bold">{{ t.label }}</span>
+          <span :class="tab === t.key ? 'text-primary' : ''" class="truncate text-xs font-semibold tabular">{{ t.note }}</span>
+        </span>
+        <span class="mt-0.5 block truncate text-[11px] font-medium opacity-70">{{ t.sub }}</span>
       </button>
     </nav>
 

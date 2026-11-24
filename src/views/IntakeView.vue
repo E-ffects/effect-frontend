@@ -178,17 +178,17 @@ const optCls = 'font-normal text-muted-foreground'
             <label :class="labelCls" for="f-dc">D/C <span :class="optCls">(선택)</span></label>
             <Input id="f-dc" v-model="form.reported_date_code" placeholder="예: 2543" inputmode="numeric" class="tabular" />
           </div>
-          <div :class="field" class="col-span-2">
+          <!-- 고객 요청 선택지(최대 '선별 지원·대금 공제')가 한 줄에 들어가도록 넓은 화면에서 3칸을 준다 -->
+          <div :class="field" class="col-span-2 sm:col-span-1">
             <label :class="labelCls" for="f-panel">패널 식별자 <span :class="optCls">(선택)</span></label>
             <Input id="f-panel" v-model="form.panel_id" spellcheck="false" autocomplete="off" />
           </div>
-          <div :class="field" class="col-span-2">
+          <div :class="field" class="col-span-2 sm:col-span-3">
             <span :class="labelCls" id="l-req">고객 요청 <span :class="optCls">(선택)</span></span>
-            <div role="radiogroup" aria-labelledby="l-req" class="flex h-9 rounded-md border bg-card p-0.5">
+            <div role="radiogroup" aria-labelledby="l-req" class="seg h-9">
               <label
                 v-for="o in ['', ...meta.customer_requests]" :key="o || 'none'"
-                :class="form.customer_request === o ? 'bg-primary text-primary-foreground' : 'text-[#4a505c] hover:bg-muted'"
-                class="flex flex-1 cursor-pointer items-center justify-center rounded px-1 text-[12px] font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
+                class="seg-item flex flex-auto cursor-pointer items-center justify-center whitespace-nowrap px-2 text-[12px] font-semibold has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
               >
                 <input v-model="form.customer_request" type="radio" name="request" :value="o" class="sr-only" />{{ o || '미정' }}
               </label>

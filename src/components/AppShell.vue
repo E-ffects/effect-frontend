@@ -63,16 +63,17 @@ function logout() {
 
 <template>
   <div class="min-h-screen">
-    <header class="sticky top-0 z-30 border-b bg-card/95 backdrop-blur">
-      <div class="mx-auto flex h-16 max-w-[1480px] items-stretch gap-8 px-6">
+    <header class="sticky top-0 z-30 border-b border-[#eceef1] bg-white/90 backdrop-blur-md">
+      <div class="mx-auto flex h-16 max-w-[1480px] items-stretch gap-10 px-6">
         <RouterLink to="/" class="flex items-center"><BrandMark /></RouterLink>
+        <!-- 메뉴: 글자는 검정 계열, 선택 표시는 빨간 밑줄 하나만 -->
         <nav class="flex items-stretch gap-1" aria-label="주 메뉴">
           <RouterLink
             v-for="m in menus"
             :key="m.to"
             :to="m.to"
-            class="flex items-center px-3 text-sm font-semibold text-[#4a505c] transition-colors hover:text-primary"
-            active-class="!text-primary shadow-[inset_0_-2px_0_var(--color-primary)]"
+            class="flex items-center px-3 text-[15px] font-medium text-[#6b717d] transition-colors hover:text-[#111]"
+            active-class="!font-bold !text-[#111] shadow-[inset_0_-2px_0_var(--color-primary)]"
           >
             {{ m.label }}
           </RouterLink>

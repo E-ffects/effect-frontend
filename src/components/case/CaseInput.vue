@@ -4,6 +4,7 @@ import { Download, FileText, Pencil } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Select from '@/components/ui/Select.vue'
+import MarkerText from '@/components/MarkerText.vue'
 import { api, fmtDate, saveFile } from '@/lib/api'
 import { auth, toast } from '@/lib/state'
 import { LEVEL_TONE } from '@/lib/caseLabels'
@@ -83,11 +84,12 @@ const dt = 'text-muted-foreground'
     <section class="rounded-[14px] border bg-card p-5">
       <div class="flex items-center justify-between">
         <h3 class="text-[15px] font-bold">고객 원문</h3>
-        <span v-if="rma.symptom?.evidence_spans?.length" class="text-xs text-muted-foreground"><mark class="rounded bg-[#fff1c7] px-1 text-foreground">강조</mark> = 분류 근거</span>
+        <span v-if="rma.symptom?.evidence_spans?.length" class="text-xs text-muted-foreground"><mark class="rounded bg-[#fdea9d] px-1 text-foreground">형광펜</mark> = 분류 근거</span>
       </div>
-      <p class="mt-3 max-h-60 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed">
-        <template v-for="(p, i) in rawParts" :key="i"><mark v-if="p.hit" class="rounded bg-[#fff1c7] px-0.5 text-foreground">{{ p.t }}</mark><template v-else>{{ p.t }}</template></template>
-      </p>
+      <!-- 분류 근거: 원문이 보이는 순간 형광펜이 그어지듯 표시된다 (MarkerText) -->
+      <MarkerText as="p" :watch-key="rma.rma_id" class="mt-3 max-h-60 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed">
+        <template v-for="(p, i) in rawParts" :key="i"><mark v-if="p.hit" data-mark="highlight" class="bg-transparent text-foreground">{{ p.t }}</mark><template v-else>{{ p.t }}</template></template>
+      </MarkerText>
       <ul v-if="attachments?.length" class="mt-3 grid gap-1.5 border-t pt-3">
         <li v-for="a in attachments" :key="a.attachment_id" class="flex items-center gap-2 text-xs">
           <FileText class="size-3.5 shrink-0 text-muted-foreground" />

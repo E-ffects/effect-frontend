@@ -64,6 +64,7 @@ function chase() {
 }
 
 function replay() {
+  clearTimeout(foldTimer)
   instant.value = false
   shown.value = 0
   logShown.value = 0
@@ -127,6 +128,14 @@ const title = computed(() => {
   if (running.value) return running.value.label
   return '분석 준비 중'
 })
+
+// 재생이 끝나면 마지막 줄이 내려온 걸 잠깐 보여 준 뒤 기록을 접는다 (요약은 위 막대와 머리줄에 남는다)
+let foldTimer = null
+watch(finished, (f) => {
+  clearTimeout(foldTimer)
+  if (f && !instant.value) foldTimer = setTimeout(() => (open.value = false), 900)
+})
+onBeforeUnmount(() => clearTimeout(foldTimer))
 
 const LABEL_CLS = {
   pending: 'text-[#9aa0aa]',

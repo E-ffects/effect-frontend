@@ -313,6 +313,43 @@ function causeDecision(id, body) {
   return { rma_id: id, approval_status: body.decision, decided_by: db.decisions[id].decided_by, decided_at: db.decisions[id].decided_at }
 }
 
+// 알림 (목업): 목업 RMA 기준 예시 4건 + 처음 연 뒤 25초가 지나면 새 확산형 알림 1건 (종이 울리는 모습 확인용)
+function alertsDb() {
+  if (!db.alerts) {
+    const ago = (min) => new Date(Date.now() - min * 60000).toISOString()
+    db.alerts = {
+      extraAt: Date.now() + 25000,
+      list: [
+        { id: 4, type: '고위험', target_label: 'RMA-08927 · PCB-ECU6-A1 쇼트', reason: '차량 전장 고객, 심각도 8, L3 원인 판정 대기', check_items: 'OLE-02 외층 에칭 압력 기록, 같은 Lot 출하분', created_at: ago(12), read: false, starred: false, rma_id: 'RMA-08927', recur_id: null },
+        { id: 3, type: '재발 의심', target_label: 'RMA-08218 · PCB-SSD8H-E3 오픈(단선)', reason: '같은 고객·불량 형태가 30일 안에 3건째', check_items: 'DSM-01 디스미어 제거량, Lot LT-01550', created_at: ago(48), read: false, starred: true, rma_id: 'RMA-08218', recur_id: null },
+        { id: 2, type: '급증', target_label: '오픈(단선) · PCB-SSD8H-E3', reason: '최근 7일 반품이 직전 4주 평균보다 많음', check_items: '디스미어 공정 조건 변경 이력', created_at: ago(180), read: false, starred: false, rma_id: null, recur_id: null },
+        { id: 1, type: '반복 재발', target_label: '쇼트 · PCB-ECU6-A1', reason: '개선안 적용 뒤에도 같은 원인 반품', check_items: '개선안 적용 Lot 범위', created_at: ago(1440), read: true, starred: false, rma_id: null, recur_id: null },
+      ],
+    }
+    save()
+  }
+  const a = db.alerts
+  if (a.extraAt && Date.now() > a.extraAt) {
+    a.extraAt = null
+    a.list.unshift({ id: 5, type: '확산형', target_label: 'RMA-08927 영향 Lot', reason: '같은 설비(OLE-02)를 거친 출하 Lot이 더 있음', check_items: '미출하 Lot 보류 여부', created_at: new Date().toISOString(), read: false, starred: false, rma_id: 'RMA-08927', recur_id: null })
+    save()
+  }
+  return a
+}
+function alertOf(id) {
+  const x = alertsDb().list.find((a) => a.id === Number(id))
+  if (!x) throw new MockError(404, '알림을 찾을 수 없습니다.')
+  return x
+}
+function alertList(q) {
+  const list = alertsDb().list
+  const items = (q?.after_id != null ? list.filter((a) => a.id > Number(q.after_id)) : list).slice(0, Number(q?.limit) || 50)
+  const unreadItems = list.filter((a) => !a.read)
+  const byType = {}
+  unreadItems.forEach((a) => (byType[a.type] = (byType[a.type] || 0) + 1))
+  return { items, unread: unreadItems.length, unread_by_type: byType, max_id: Math.max(0, ...list.map((a) => a.id)), starred_count: list.filter((a) => a.starred).length }
+}
+
 function approvals(query) {
   need('QUALITY')
   const want = query?.status || 'WAITING'
@@ -460,7 +497,11 @@ const routes = [
     return { rma_id: m[1], as_of: NOW, items }
   }],
   ['GET', /^\/rmas\/export$/, (_, __, q) => rmaCsv(q)],
-  ['GET', /^\/alerts$/, () => ({ items: [], unread: 0, unread_by_type: {}, max_id: 0, starred_count: 0 })],
+  ['GET', /^\/alerts$/, (_, __, q) => alertList(q)],
+  ['POST', /^\/alerts\/read-all$/, () => { alertsDb().list.forEach((x) => (x.read = true)); save(); return { ok: true } }],
+  ['POST', /^\/alerts\/(\d+)\/read$/, (m) => { alertOf(m[1]).read = true; save(); return { ok: true } }],
+  ['POST', /^\/alerts\/(\d+)\/star$/, (m, b) => { alertOf(m[1]).starred = !!b?.starred; save(); return { ok: true } }],
+  ['DELETE', /^\/alerts\/(\d+)$/, (m) => { const a = alertsDb(); alertOf(m[1]); a.list = a.list.filter((x) => x.id !== Number(m[1])); save(); return { ok: true } }],
   ['GET', /^\/meta$/, () => meta],
   ['POST', /^\/intake$/, (_, b) => intake(b)],
   ['GET', /^\/approvals$/, (_, __, q) => approvals(q)],

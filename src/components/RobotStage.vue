@@ -20,7 +20,6 @@ const clip = ref({ width: '0px', height: '0px' })
 const style = ref({ width: `${VIEW.w}px`, height: `${VIEW.h}px` })
 const ready = ref(false)
 let ro
-let timer
 
 function fit() {
   const el = box.value
@@ -41,11 +40,10 @@ onMounted(async () => {
   fit()
   ro = new ResizeObserver(fit)
   ro.observe(box.value)
-  timer = setTimeout(show, 6000) // load 이벤트를 놓쳐도 로딩 상태로 남지 않게
+  show() // 장면 바탕색이 패널 배경과 같아서 바로 보여도 어색하지 않다. 로봇은 준비되면 그 자리에 나타난다
 })
 onBeforeUnmount(() => {
   ro?.disconnect()
-  clearTimeout(timer)
 })
 </script>
 
@@ -60,7 +58,6 @@ onBeforeUnmount(() => {
         class="absolute left-0 top-0 origin-top-left border-0 transition-opacity duration-700"
         :class="ready ? 'opacity-100' : 'opacity-0'"
         :style="style"
-        @load="() => setTimeout(show, 900)"
       />
     </div>
   </div>

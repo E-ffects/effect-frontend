@@ -15,6 +15,8 @@ const password = ref('')
 const error = ref('')
 const loading = ref(false)
 const ready = computed(() => username.value.trim() && password.value)
+// 임시 전환 링크: 가려던 주소(redirect)를 그대로 넘긴다
+const rocketHref = computed(() => '/login-new/index.html' + (typeof route.query.redirect === 'string' ? `?redirect=${encodeURIComponent(route.query.redirect)}` : ''))
 
 async function submit() {
   if (!ready.value || loading.value) return
@@ -51,6 +53,10 @@ async function submit() {
         <p v-if="error" class="text-center text-sm text-destructive">{{ error }}</p>
         <p class="text-center text-sm text-muted-foreground">
           처음 방문하셨나요? <RouterLink to="/signup" class="font-semibold text-primary underline-offset-4 hover:underline">회원가입</RouterLink>
+        </p>
+        <!-- 임시: 로켓 화면과 서로 오가며 비교하는 링크. 필요 없어지면 이 줄과 public/login-new 폴더를 지운다 -->
+        <p class="text-center text-xs text-muted-foreground">
+          <a :href="rocketHref" class="underline-offset-4 hover:text-foreground hover:underline">Rocket 로그인 화면으로 보기</a>
         </p>
       </form>
       <p class="mt-6 rounded-lg bg-[#fff8f1] px-4 py-3 text-xs leading-relaxed text-[#a0632f]">역할(품질관리자 / 고객대응관리자)은 가입 시 지정된 계정 역할로 결정됩니다.</p>

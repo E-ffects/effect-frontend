@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card.vue'
 import Select from '@/components/ui/Select.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import BeforeAfterChart from '@/components/charts/BeforeAfterChart.vue'
+import ActionManage from '@/components/recurrence/ActionManage.vue'
 import { MailOpen, Star, Trash2 } from 'lucide-vue-next'
 import { api, fmtDate } from '@/lib/api'
 import { persistedRef } from '@/lib/persist'
@@ -44,14 +45,23 @@ async function loadAlerts() {
 }
 
 watch(tab, loadAlerts, { immediate: true })
-onMounted(async () => {
+async function loadActions() {
   const res = await api('/recurrence/actions', { query: { size: 100 } }).catch(reportLoadError)
   actions.value = res?.items ?? []
-})
-watch(selected, async (id) => {
+}
+async function loadTrend(id) {
   trend.value = null
   if (id) trend.value = await api(`/recurrence/actions/${id}/trend`).catch(reportLoadError)
-}, { immediate: true })
+}
+onMounted(loadActions)
+watch(selected, loadTrend, { immediate: true })
+
+// 대책 등록·수정·시행 기록 뒤: 목록을 다시 불러오고, 새로 만든 대책을 고른다 (같은 대책이면 추이만 갱신)
+async function onActionChanged(newId) {
+  await loadActions()
+  if (newId && newId !== selected.value) router.replace({ query: { ...route.query, recurId: newId } })
+  else loadTrend(selected.value)
+}
 
 // ---------- 알림 일괄 선택 (Gmail 방식): 체크 → 읽음 처리 · 삭제 ----------
 const picked = ref(new Set())
@@ -252,6 +262,8 @@ const resetFilter = () => (f.value = { ...EMPTY_FILTER })
       </div>
     </Card>
   </div>
+
+  <ActionManage v-if="actions" class="mt-4" :action="selectedAction" :actions="actions" :role-map="ROLE" :category-map="CATEGORY" @changed="onActionChanged" />
 
   <Card title="판정 및 알림 기준" class="mt-4">
     <div class="grid grid-cols-2 gap-6 text-xs text-muted-foreground">

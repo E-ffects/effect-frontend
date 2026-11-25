@@ -10,6 +10,9 @@ import AgentProgress from '@/components/case/AgentProgress.vue'
 import CaseInput from '@/components/case/CaseInput.vue'
 import CaseOutput from '@/components/case/CaseOutput.vue'
 import CauseDecision from '@/components/case/CauseDecision.vue'
+import RecurrenceDecide from '@/components/case/RecurrenceDecide.vue'
+import CsFollowUp from '@/components/case/CsFollowUp.vue'
+import CsHistory from '@/components/case/CsHistory.vue'
 import CsReply from '@/components/case/CsReply.vue'
 import CsSimilar from '@/components/case/CsSimilar.vue'
 import { api, MOCK } from '@/lib/api'
@@ -45,6 +48,16 @@ async function loadDetail() {
   }
   rma.value = d
 }
+// 회신 이력 (고객대응관리자 화면의 1차·2차 회신이 같이 쓴다)
+const comms = ref([])
+async function loadComms() {
+  if (quality.value) return
+  try {
+    comms.value = (await api(`/rmas/${rmaId.value}/communications`)).items
+  } catch {
+    comms.value = []
+  }
+}
 async function loadAnalysis() {
   const before = analysis.value?.analysis_state
   analysis.value = await api(`/rmas/${rmaId.value}/analysis`)
@@ -63,7 +76,7 @@ async function loadAll() {
   clearTimeout(timer)
   error.value = ''
   try {
-    const [, , att, meta] = await Promise.all([loadDetail(), loadAnalysis(), api(`/rmas/${rmaId.value}/attachments`), api('/meta')])
+    const [, , att, meta] = await Promise.all([loadDetail(), loadAnalysis(), api(`/rmas/${rmaId.value}/attachments`), api('/meta'), loadComms()])
     attachments.value = att.items
     stages.value = Object.fromEntries(meta.detection_stages.map((s) => [s.code, s.label]))
   } catch (e) {
@@ -76,7 +89,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 
 async function refresh() {
   clearTimeout(timer)
-  await loadDetail()
+  await Promise.all([loadDetail(), loadComms()])
   await loadAnalysis()
 }
 
@@ -192,6 +205,7 @@ const csResult = computed(() => analysis.value?.result)
           <div v-if="running" class="grid gap-4"><Skeleton class="h-64 rounded-[14px]" /><Skeleton class="h-48 rounded-[14px]" /></div>
           <div v-else-if="finished" class="grid gap-4">
             <CauseDecision :rma-id="rma.rma_id" :analysis="analysis" :level="level" :approval-status="rma.approval_status" @decided="refresh" />
+            <RecurrenceDecide v-if="['APPROVED', 'CONFIRMED'].includes(rma.approval_status)" :rma-id="rma.rma_id" :ai="analysis.result?.recurrence_check" @decided="refresh" />
             <CaseOutput :result="analysis.result" :trace="analysis.trace" />
           </div>
           <p v-else class="rounded-[14px] border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">분석이 끝나면 원인 후보, Lot 이력, 영향 후보 Lot, 재발 판정이 여기에 나옵니다.</p>
@@ -209,9 +223,12 @@ const csResult = computed(() => analysis.value?.result)
               </dl>
             </section>
             <CsReply :rma="rma" :analysis="analysis" @changed="refresh" />
+            <!-- 원인 확정 뒤에 열리는 2차 회신 + 처리방안 -->
+            <CsFollowUp v-if="finished" :rma="rma" :analysis="analysis" @changed="refresh" />
+            <CsHistory :items="comms" />
             <CsSimilar v-if="finished" :rma-id="rma.rma_id" />
           </div>
-          <p v-else class="rounded-[14px] border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">분석이 끝나면 고객 회신 초안과 처리방안 제안이 여기에 나옵니다.</p>
+          <p v-else class="rounded-[14px] border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">분석이 끝나면 1차 회신 초안이 여기에 나오고, 원인이 확정되면 2차 회신과 처리방안이 열립니다.</p>
         </template>
       </div>
     </div>

@@ -55,7 +55,9 @@ onMounted(() => {
 })
 onBeforeUnmount(() => clearInterval(timer))
 
-function logout() {
+async function logout() {
+  // 서버의 refresh 쿠키도 지운다. 실패해도 이 기기의 로그아웃은 진행한다
+  await api('/auth/logout', { method: 'POST' }).catch(() => {})
   clearSession()
   router.push('/login')
 }

@@ -4,9 +4,10 @@ import { aiState, auth, clearSession, setSession } from './state'
 export class ApiError extends Error {
   name = 'ApiError'
 
-  constructor(status, message) {
+  constructor(status, message, code) {
     super(message)
     this.status = status
+    this.code = code // Spring 오류 코드 (예: FOLLOW_UP_DRAFT_NOT_READY)
   }
 
   // 서버에 닿지 못했거나 서버 쪽 오류 (503 = AI 일시 불가는 AI 배너로 따로 안내하므로 제외)
@@ -34,7 +35,7 @@ async function viaMock(path, opts) {
   try {
     return await mockModule.mockApi(path, opts)
   } catch (e) {
-    throw new ApiError(e.status ?? 500, e.message)
+    throw new ApiError(e.status ?? 500, e.message, e.code)
   }
 }
 
@@ -72,8 +73,10 @@ export async function api(path, { method = 'GET', body, query, raw = false } = {
   if (res.status === 503) aiState.available = false
   if (!res.ok) {
     let detail = fallbackMessage(res.status)
+    let code
     try {
       const data = await res.json()
+      if (typeof data.code === 'string') code = data.code
       if (typeof data.message === 'string') detail = data.message // Spring: {code, message, content}
       else if (typeof data.detail === 'string') detail = data.detail // AI 서버: {detail, code}
       // FastAPI 기본 입력 오류 형식 ([{loc, msg}, ...]) 대비
@@ -81,7 +84,7 @@ export async function api(path, { method = 'GET', body, query, raw = false } = {
     } catch {
       /* JSON이 아닌 응답 (프록시 오류 페이지 등) → 상태 코드별 기본 문구 */
     }
-    throw new ApiError(res.status, detail)
+    throw new ApiError(res.status, detail, code)
   }
   if (raw) return res
   if (res.status === 204) return null

@@ -1,0 +1,2278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E!ffect 로그인</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+
+:root {
+    --green: #39FF14;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ui: 'Outfit', 'Pretendard Variable', Pretendard, sans-serif;
+    --sans: 'General Sans', 'Pretendard Variable', Pretendard, -apple-system, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { background: #000; }
+html, body { overflow: hidden; min-height: 100vh; }
+body { font-family: var(--ui); color: #fff; background: transparent; }
+
+/* ───── 장면: 글자로 그린 부산·서울 야경 ───── */
+.scene {
+    position: fixed; top: 0; left: 0; width: 100vw;
+    bottom: calc(20px + 8vw);
+    overflow: hidden;
+    z-index: -1;
+}
+.scene canvas {
+    display: block; position: absolute;
+    -webkit-mask-image: linear-gradient(#0000 0, #000 5% 94%, #0000 100%), linear-gradient(90deg, #0000 0, #000 5% 95%, #0000 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(#0000 0, #000 5% 94%, #0000 100%), linear-gradient(90deg, #0000 0, #000 5% 95%, #0000 100%);
+    mask-composite: intersect;
+}
+
+/* ───── 로그인 버튼: 구분선 바로 아래 ───── */
+.hero {
+    position: fixed; z-index: 4;
+    top: calc(50vh + 5rem); left: 50%;
+    transform: translate(-50%);
+    display: flex; justify-content: center;
+}
+.hero-btn {
+    font-family: var(--ui);
+    font-size: 1.1rem; font-weight: 500; letter-spacing: 0.02em;
+    color: #fff; background: #000;
+    border: 1px solid rgba(255,255,255,0.18);
+    padding: 1.3rem 2.5rem; border-radius: 9999px;
+    display: inline-flex; align-items: center; gap: 0.9rem;
+    white-space: nowrap; cursor: pointer; outline: none;
+    transition: all 0.3s var(--ease-out);
+    box-shadow: 0 4px 25px rgba(0,0,0,0.4);
+}
+.hero-btn:hover:not(:disabled), .hero-btn:focus-visible {
+    color: #000; background: #fff; border-color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 30px rgba(0,0,0,0.3);
+}
+.hero-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.hero-btn:active { transform: translateY(0); }
+.hero-btn:disabled { opacity: 0.5; cursor: default; }
+
+.dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--green); position: relative; display: inline-block;
+    animation: pulse-glow 2s infinite ease-in-out;
+}
+.dot::after {
+    content: ''; position: absolute; inset: -5px; border-radius: 50%;
+    background: rgba(57,255,20,0.45);
+    animation: wave-expand 2s infinite ease-in-out;
+}
+@keyframes pulse-glow {
+    0%, 100% { opacity: 0.5; transform: scale(0.85); box-shadow: 0 0 4px rgba(57,255,20,0.3); }
+    50% { opacity: 1; transform: scale(1.1); box-shadow: 0 0 12px rgba(57,255,20,0.9); }
+}
+@keyframes wave-expand {
+    0% { transform: scale(0.6); opacity: 0.9; }
+    100% { transform: scale(2.3); opacity: 0; }
+}
+
+/* ───── 가운데 푸터 ───── */
+.ft {
+    position: fixed; z-index: 3;
+    top: 50vh; left: 20px; right: 20px;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column;
+    text-shadow: 0 0 14px #000, 0 0 4px #000;
+}
+.ft-top, .ft-bottom { display: flex; justify-content: space-between; width: 100%; padding: 0 5px; }
+.ft-top { align-items: flex-end; }
+.ft-bottom { align-items: center; }
+.ft-title { font-family: var(--sans); font-size: 1.4rem; font-weight: 400; letter-spacing: -0.015em; }
+.ft-line { border: none; height: 1px; width: 100%; margin: 1.6rem 0; background: rgba(255,255,255,0.2); }
+.ft-side { flex: 1; }
+.ft-place {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.45rem 0.95rem 0.45rem 0.75rem;
+    font-family: var(--ui); font-size: 0.9rem; letter-spacing: 0.03em;
+    color: #fff; background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.22); border-radius: 9999px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    cursor: pointer; text-shadow: none;
+    transition: background 0.3s var(--ease-out), color 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
+}
+.ft-place svg { width: 15px; height: 15px; color: var(--green); }
+.ft-place:hover, .ft-place:focus-visible { color: #000; background: #fff; border-color: #fff; outline: none; }
+.ft-links { flex: 2; display: flex; justify-content: center; align-items: center; gap: 2.8rem; }
+.ft-link {
+    font-family: var(--ui); font-size: 0.95rem; letter-spacing: 0.03em;
+    color: #fff; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none;
+    transition: opacity 0.3s, transform 0.3s;
+}
+.ft-link:hover, .ft-link:focus-visible { opacity: 0.75; transform: translateY(-1px); outline: none; }
+.ft-copy { font-family: var(--ui); font-size: 0.95rem; letter-spacing: 0.02em; text-align: right; color: rgba(255,255,255,0.45); }
+
+/* ───── 워드마크 ───── */
+.mark {
+    position: fixed; z-index: 3; bottom: 20px; left: 0; right: 0;
+    display: flex; justify-content: center; padding: 0 20px; pointer-events: none;
+}
+.mark-text {
+    font-family: var(--sans); font-size: 15vw; font-weight: 400;
+    letter-spacing: -0.03em; margin-right: -0.03em; line-height: 0.8;
+    text-align: center; white-space: nowrap; width: 100%; opacity: 0.95;
+}
+.letter { display: inline-block; overflow: hidden; vertical-align: bottom; line-height: 0.8; }
+.letter-in {
+    display: inline-block; opacity: 0;
+    transform: translateX(-105%); filter: blur(20px);
+    animation: letter-reveal 1.2s cubic-bezier(0.05, 0.9, 0.1, 1) forwards;
+}
+@keyframes letter-reveal {
+    0% { opacity: 0; transform: translateX(-105%); filter: blur(20px); }
+    25% { opacity: 1; }
+    100% { opacity: 0.95; transform: translateX(0); filter: blur(0); }
+}
+
+/* ───── 커서 ───── */
+.cur-card {
+    position: fixed; top: 0; left: 0; z-index: 99999; pointer-events: none;
+    padding: 0.75rem 1.5rem;
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 9999px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+    transform: translate(-50%,-50%) scale(0); opacity: 0;
+    will-change: transform, opacity;
+    transition: opacity 0.4s var(--ease-out);
+}
+.cur-card.is-on { opacity: 1; }
+.cur-text {
+    font-family: var(--sans); font-size: 0.85rem; font-weight: 500; letter-spacing: 0.06em;
+    color: var(--green); white-space: nowrap; text-shadow: 0 0 8px rgba(57,255,20,0.45);
+}
+.cur-white { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+.cur-ring {
+    position: fixed; top: 0; left: 0; z-index: 99998; pointer-events: none;
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.45);
+    transform: translate(-50%,-50%) scale(0); opacity: 0;
+    will-change: transform, opacity;
+    transition: opacity 0.4s var(--ease-out), border-color 0.4s ease;
+}
+.cur-ring.is-on { opacity: 1; }
+.cur-ring.is-wide { border-color: rgba(255,255,255,0.15); }
+@media (hover: hover) and (pointer: fine) {
+    html.has-cursor, html.has-cursor * { cursor: none; }
+    html.has-cursor dialog, html.has-cursor dialog * { cursor: auto; }
+    html.has-cursor dialog button { cursor: pointer; }
+}
+
+/* ───── 로그인 창 ───── */
+.lg {
+    width: min(400px, 100vw - 32px); max-width: none; margin: auto; padding: 0;
+    color: #fff; background: #0b0b0c;
+    border: 1px solid rgba(255,255,255,0.14); border-radius: 20px;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.8);
+}
+.lg::backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.lg[open] { animation: lg-pop 0.32s var(--ease-out); }
+@keyframes lg-pop { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
+.lg-box { display: grid; gap: 14px; padding: 36px 32px 28px; font-family: 'Pretendard Variable', Pretendard, -apple-system, sans-serif; position: relative; }
+.lg-x {
+    position: absolute; top: 12px; right: 12px; width: 40px; height: 40px;
+    display: grid; place-items: center; color: rgba(255,255,255,0.55);
+    background: none; border: 0; border-radius: 999px; cursor: pointer;
+}
+.lg-x:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.lg-x svg { width: 20px; height: 20px; }
+.lg-h { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.25; }
+.lg-sub { font-size: 15px; line-height: 1.55; color: rgba(255,255,255,0.6); word-break: keep-all; margin-bottom: 6px; }
+.lg-field { display: grid; gap: 6px; }
+.lg-field label { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.75); }
+.lg-field input {
+    font: inherit; font-size: 15px; color: #fff;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.14); border-radius: 12px;
+    padding: 0.85rem 1rem; outline: none;
+    transition: border-color 0.2s, background 0.2s;
+}
+.lg-field input::placeholder { color: rgba(255,255,255,0.35); }
+.lg-field input:focus { border-color: var(--green); background: rgba(255,255,255,0.08); }
+.lg-submit { width: 100%; justify-content: center; margin-top: 6px; padding: 1.05rem 2rem; font-size: 1rem; }
+.lg-error { min-height: 1.3em; text-align: center; font-size: 14px; color: #ff6b5e; }
+.lg-sign { text-align: center; font-size: 14px; color: rgba(255,255,255,0.55); }
+.lg-sign a { color: #fff; font-weight: 600; text-underline-offset: 4px; }
+.lg-fine { margin-top: 2px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12); font-size: 13px; line-height: 1.6; color: rgba(255,255,255,0.45); word-break: keep-all; }
+
+@media (max-width: 760px) {
+    .scene { bottom: calc(20px + 12vw); }
+    .mark-text { font-size: 22vw; }
+    .hero-btn { padding: 1.1rem 2rem; font-size: 1rem; }
+    .ft-title { font-size: 1.05rem; }
+    .ft-line { margin: 1.1rem 0; }
+    .ft-copy { display: none; }
+    .ft-links { flex: 1; justify-content: flex-end; gap: 1.6rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .letter-in, .dot, .dot::after, .lg[open] { animation: none; }
+    .letter-in { opacity: 0.95; transform: none; filter: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene-box" aria-hidden="true"><canvas id="scene"></canvas></div>
+
+<main class="hero">
+    <h1 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">E!ffect 로그인</h1>
+    <button type="button" class="hero-btn" id="open-login" aria-haspopup="dialog">
+        <span>로그인</span><span class="dot" aria-hidden="true"></span>
+    </button>
+</main>
+
+<footer class="ft">
+    <div class="ft-top">
+        <p class="ft-title">PCB, 더 명확한 분석.</p>
+        <p class="ft-title">더 빠른 대응, 더 나은 품질.</p>
+    </div>
+    <hr class="ft-line">
+    <div class="ft-bottom">
+        <div class="ft-side">
+            <button type="button" class="ft-place" id="place">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span id="place-label">서울</span>
+            </button>
+        </div>
+        <nav class="ft-links" aria-label="바닥글">
+            <a class="ft-link" href="/signup">회원가입</a>
+            <a class="ft-link" href="/login">기존 로그인 화면</a>
+        </nav>
+        <p class="ft-side ft-copy">© 2026 E!ffect RMA Intelligence</p>
+    </div>
+</footer>
+
+<div class="mark" aria-hidden="true"><p class="mark-text" id="mark-text">E!ffect</p></div>
+
+<div class="cur-ring" id="cur-ring" aria-hidden="true"></div>
+<div class="cur-card" id="cur-card" aria-hidden="true"><span class="cur-text"><span class="cur-white">Let's</span> RMA</span></div>
+
+<dialog class="lg" id="login" aria-labelledby="lg-title">
+    <form class="lg-box" id="login-form" novalidate>
+        <button type="button" class="lg-x" id="close-login" aria-label="로그인 창 닫기">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+        <h2 class="lg-h" id="lg-title">워크스페이스 로그인</h2>
+        <p class="lg-sub">PCB 반품과 고객불만 데이터를 한눈에 확인하세요.</p>
+        <div class="lg-field">
+            <label for="username">아이디</label>
+            <input id="username" placeholder="아이디(사번 또는 이메일)" autocomplete="username">
+        </div>
+        <div class="lg-field">
+            <label for="password">비밀번호</label>
+            <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password">
+        </div>
+        <button type="submit" class="hero-btn lg-submit" id="submit" disabled><span>로그인</span><span class="dot" aria-hidden="true"></span></button>
+        <p class="lg-error" id="error" role="alert"></p>
+        <p class="lg-sign">처음 방문하셨나요? <a href="/signup">회원가입</a></p>
+        <p class="lg-fine">역할(품질관리자 / 고객대응관리자)은 가입 시 지정된 계정 역할로 결정됩니다.</p>
+    </form>
+</dialog>
+
+<script>
+(() => {
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+/* ═════════ 장면: 부산(광안대교) · 서울(남산타워) ═════════ */
+function createBusan(canvas, still) {
+// gwangan_bridge.js : Gwangalli night photo, painted then printed as ASCII
+
+// ---- layout ----
+const W = 1080, H = 1920, SCENE_H = 1290, CODE_TOP = 1300;
+const COLS = 120, ROWS = 86, CELL_W = 9, CELL_H = 15, N = COLS * ROWS;
+const LW = 360, LH = 430, K = 1 / 3;   // low-res photo, 1/3 of the scene
+const LOOP = 34, HORIZON = 800, SEA_END = 1130, DRONES = 800;
+const CODE_ROWS = 18, LINE_H = 30;
+const RAMP = " .':;~^+=*xvo%&#W@";   // soft symbol ramp: cosy, not noisy
+const GOLD = '255,196,92', SILVER = '214,224,240', WHITE = '255,255,255';
+// night-pastel palette: one tone, different hues (tone-and-tone)
+const COOL_LED = [243, 230, 207], SKY_LED = [242, 172, 128];   // cables ivory, deck apricot
+const GOLD_LED = [255, 190, 95];
+// fireworks: one pastel colour per shell, gold only now and then (tone-and-tone)
+const SHELL_COLORS = ['240,150,170', '245,178,130', '190,170,240', '150,215,200', '232,232,240'];
+let shellNo = 0;
+const nextShellColor = () => (++shellNo % 5 === 0 ? GOLD : SHELL_COLORS[shellNo % SHELL_COLORS.length]);
+
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, p) => a + (b - a) * p;
+const ease = p => p < 0.5 ? 2 * p * p : 1 - (2 - 2 * p) ** 2 / 2;
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const rgba = (rgb, a) => 'rgba(' + rgb + ',' + a + ')';
+const mix = (a, b, t) => a.map((v, i) => Math.round(lerp(v, b[i], t))).join(',');
+const NUMS = {};
+const nums = rgb => NUMS[rgb] || (NUMS[rgb] = rgb.split(',').map(Number));
+
+function makeCanvas(w, h, cpu = true) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return [c, c.getContext('2d', { willReadFrequently: cpu })];
+}
+const sceneScale = c => c.setTransform(K, 0, 0, K, 0, 0);
+const pixelScale = c => c.setTransform(1, 0, 0, 1, 0, 0);
+function glow(c, x, y, r, rgb, a) {
+  const g = c.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, rgba(rgb, a));
+  g.addColorStop(1, rgba(rgb, 0));
+  c.fillStyle = g;
+  c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+}
+
+const view = canvas, out = view.getContext('2d');
+const [photo, P] = makeCanvas(LW, LH);     // the painted night photo
+const [front, F] = makeCanvas(LW, LH);     // city, drones, fireworks
+const [bridge, B] = makeCanvas(LW, LH);    // Gwangan Bridge
+const [sky, S] = makeCanvas(LW, LH);       // static sky
+const [city, C] = makeCanvas(LW, LH);      // static Marine City
+const [mirror, M] = makeCanvas(LW, 267);   // what the sea reflects
+const [water, R] = makeCanvas(LW, 110);    // reflection strip
+const [waves, V] = makeCanvas(LW + 120, 110); // broken ripple mask
+const MK = makeCanvas(540, 300)[1];
+const [letters, A] = makeCanvas(W, SCENE_H, false);
+const colI = new Float32Array(COLS), colR = new Float32Array(COLS);
+const colG = new Float32Array(COLS), colB = new Float32Array(COLS);
+
+// ---- bridge geometry (scene coordinates) ----
+const deckTop = x => 770 + 110 * (x - 250) / 830;
+const deckBottom = x => deckTop(x) + 4 + 18 * (x - 250) / 830;
+const waterAt = x => Math.max(806, deckTop(x) + 43 + 0.25 * (x - 380));
+const spacing = x => 6 + 12 * (x - 250) / 830;   // perspective gap
+const FRONT = { x: 720, base: 960, top: 300, w: 18, gap: 50 };
+const BACK = { x: 380, base: 830, top: 540, w: 7, gap: 22 };
+const pillarX = (tw, side) => tw.x + side * (tw.gap + tw.w) / 2;
+const strands = [-1, 1].map((side, n) => ({
+  front: [pillarX(FRONT, side), FRONT.top],
+  back: [pillarX(BACK, side), BACK.top],
+  mid: [552 + side * 12, 1140],
+  right: [860, 760], rightEnd: [1080, deckTop(1080) + n * 4],
+  left: [330, 740], leftEnd: [250, deckTop(250) + n]
+}));
+const bez = (p0, c, p2, t, k) =>
+  (1 - t) ** 2 * p0[k] + 2 * t * (1 - t) * c[k] + t * t * p2[k];
+
+// ---- backdrop ----
+function buildSky() {
+  sceneScale(S);
+  let g = S.createLinearGradient(0, 0, 0, HORIZON);
+  g.addColorStop(0, '#030305'); g.addColorStop(1, '#0f0c10');
+  S.fillStyle = g; S.fillRect(0, 0, W, HORIZON);
+  // thin amber haze where city light hits the air
+  g = S.createLinearGradient(0, 720, 0, HORIZON);
+  g.addColorStop(0, 'rgba(176,110,150,0)');
+  g.addColorStop(1, 'rgba(176,110,150,0.14)');   // plum haze
+  S.fillStyle = g; S.fillRect(0, 720, W, 80);
+}
+const stars = Array.from({ length: 46 }, () => ({
+  x: (Math.random() * COLS | 0) * 9 + 4.5, y: (Math.random() * 42 | 0) * 15 + 7.5, r: 1.3 + Math.random() * 2,
+  a: 0.3 + Math.random() * 0.7, twinkle: Math.random() < 0.3, ph: Math.random() * 6
+}));
+function drawStars(c, T) {
+  for (const s of stars) {
+    const tw = 0.4 + 0.6 * Math.abs(Math.sin(T * 1.6 + s.ph));
+    c.fillStyle = rgba(s.ph > 3 ? '255,244,226' : '205,218,246', s.twinkle ? s.a * tw : s.a);
+    c.beginPath(); c.arc(s.x, s.y, s.r, 0, 7); c.fill();
+  }
+}
+const towers = [];
+function buildMarineCity() {
+  sceneScale(C);
+  for (const x of [6, 32, 58, 86, 112, 140, 166, 194]) {
+    const w = 18 + Math.random() * 12, top = 430 + Math.random() * 190;
+    towers.push({ x: x + w / 2, top });
+    const g = C.createLinearGradient(0, top, 0, HORIZON);
+    g.addColorStop(0, '#0a1024'); g.addColorStop(1, '#05081a');   // faces stay dark: only windows print
+    C.fillStyle = g; C.beginPath();
+    C.moveTo(x, HORIZON); C.lineTo(x, top + 10);
+    C.quadraticCurveTo(x + w / 2, top - 6, x + w, top + 10);
+    C.lineTo(x + w, HORIZON); C.fill();
+    // tight grid of small windows, about 65% lit
+    for (let y = top + 16; y < HORIZON - 4; y += 8)
+      for (let wx = x + 3; wx < x + w - 4; wx += 6) if (Math.random() < 0.65) {
+        C.fillStyle = ['#f5c66e', '#f3e6cf', '#9fd3c7', '#e9a3a8', '#f5c66e'][Math.random() * 5 | 0];
+        C.globalAlpha = 0.5 + Math.random() * 0.5;
+        C.fillRect(wx, y, 3, 4);
+      }
+    C.globalAlpha = 1;
+  }
+}
+function buildRippleMask() {
+  for (let j = 0; j < 110; j++)
+    for (let x = 0; x < LW + 120;) {
+      const keep = 2 + Math.random() * (8 - j * 0.04);
+      const cut = 1.5 + Math.random() * (2 + j * 0.05);
+      V.fillStyle = rgba('0,0,0', 0.7 + Math.random() * 0.3);
+      V.fillRect(x + keep, j, cut, 1);
+      x += keep + cut;
+    }
+}
+
+// hangers: vertical lines from each cable down to the deck
+const hangers = [];
+function planHangers() {
+  const xs = [];
+  for (let x = 1076; x > 254; x -= spacing(x)) xs.push(x);
+  for (const s of strands) {
+    const segs = [[s.front, s.mid, s.back, 1], [s.front, s.right, s.rightEnd, 0],
+      [s.back, s.left, s.leftEnd, 0]];
+    for (const [p0, c, p2, both] of segs) for (let i = 0; i < 200; i++) {
+      const t0 = i / 200, t1 = (i + 1) / 200;
+      const xa = bez(p0, c, p2, t0, 0), xb = bez(p0, c, p2, t1, 0);
+      for (const x of xs) {
+        const f = (x - xa) / (xb - xa);
+        if (!(f >= 0 && f < 1)) continue;
+        const t = lerp(t0, t1, f), y = bez(p0, c, p2, t, 1);
+        if (y > deckTop(x) - 4) continue;
+        const grow = both ? 1 - Math.abs(1 - 2 * t) : t;
+        hangers.push({ x, y1: y, y2: deckTop(x), at: 1.5 + 1.5 * grow });
+      }
+    }
+  }
+}
+
+// draw part of a quadratic curve (de Casteljau split), return its tip
+function quadPart(c, p0, cp, p2, t) {
+  const q = [lerp(p0[0], cp[0], t), lerp(p0[1], cp[1], t)];
+  const r = [lerp(cp[0], p2[0], t), lerp(cp[1], p2[1], t)];
+  const tip = [lerp(q[0], r[0], t), lerp(q[1], r[1], t)];
+  c.moveTo(p0[0], p0[1]); c.quadraticCurveTo(q[0], q[1], tip[0], tip[1]);
+  return tip;
+}
+
+function drawTower(tw, rise, led) {
+  if (rise <= 0) return;
+  const top = tw.base - (tw.base - tw.top) * rise, half = tw.gap / 2;
+  // floodlit from below: bright at the foot, dark at the top
+  const g = B.createLinearGradient(0, tw.base, 0, tw.top);
+  g.addColorStop(0, 'rgba(236,160,168,0.95)');   // towers: rose floodlight
+  g.addColorStop(0.55, 'rgba(122,78,92,0.9)');
+  g.addColorStop(1, 'rgba(28,24,26,1)');
+  B.fillStyle = g;
+  B.fillRect(tw.x - half - tw.w, top, tw.w, tw.base - top);
+  B.fillRect(tw.x + half, top, tw.w, tw.base - top);
+  // three cross beams: one near the top, two hugging the deck
+  const beams = [tw.top + (tw.base - tw.top) * 0.05, deckTop(tw.x), deckBottom(tw.x)];
+  for (const y of beams) if (y > top)
+    B.fillRect(tw.x - half - tw.w, y - tw.w * 0.35, tw.gap + tw.w * 2, tw.w * 0.7);
+  // white LED strips on the pillar edges
+  B.globalCompositeOperation = 'lighter';
+  B.strokeStyle = led(COOL_LED, 0.9); B.lineWidth = tw.w > 10 ? 1.8 : 1;
+  B.shadowBlur = 3; B.shadowColor = B.strokeStyle; B.beginPath();
+  for (const x of [tw.x - half - tw.w, tw.x - half, tw.x + half, tw.x + half + tw.w]) {
+    B.moveTo(x, tw.base); B.lineTo(x, top);
+  }
+  B.stroke(); B.shadowBlur = 0;
+  if (rise < 1) glow(B, tw.x, top, 34, WHITE, 1);
+  B.globalCompositeOperation = 'source-over';
+}
+
+function ledStrip(head, edge, width, color) {
+  B.strokeStyle = color; B.lineWidth = width;
+  B.shadowBlur = 4; B.shadowColor = color;
+  B.beginPath(); B.moveTo(1080, edge(1080)); B.lineTo(head, edge(head)); B.stroke();
+  B.shadowBlur = 0;
+}
+
+const cars = Array.from({ length: 46 }, (_, i) => ({
+  u: Math.random(), v: 0.05 + Math.random() * 0.04, dir: i % 2 ? 1 : -1 }));
+function drawCars(T, head, dim) {
+  for (const car of cars) {
+    const u = ((car.u + car.dir * car.v * T) % 1 + 1) % 1, x = 250 + 830 * u;
+    if (x < head) continue;
+    const y = lerp(deckTop(x), deckBottom(x), car.dir > 0 ? 0.3 : 0.65);
+    const r = 0.8 + 2.2 * u;   // closer cars look bigger
+    B.fillStyle = car.dir > 0 ? rgba('255,250,235', dim) : rgba('255,60,45', dim);
+    B.fillRect(x - r, y - r * 0.6, r * 2, r * 1.2);
+  }
+}
+
+// Gwangan Bridge: towers rise, cables sweep out, deck LEDs light up
+function drawBridge(T) {
+  pixelScale(B); B.clearRect(0, 0, LW, LH); sceneScale(B);
+  const rise = ease(clamp(T / 1.5)), cable = clamp((T - 1.5) / 1.5);
+  const deck = clamp(T - 3);
+  const gold = 0;   // the bridge keeps its pastel lights through the fireworks
+  // dimmed during the drone show, easing down and back up (no hard switch)
+  const dim = 1 - 0.4 * ease(clamp((T - 4) / 1.2)) * (1 - ease(clamp((T - 19) / 1.2)));
+  const led = (rgb, a) => rgba(mix(rgb, GOLD_LED, gold), a * dim);
+  drawTower(BACK, rise, led); drawTower(FRONT, rise, led);
+  // thin dark hangers drop from the cables
+  B.strokeStyle = rgba('183,168,232', 0.32 * dim);   // hangers: lavender
+  B.lineWidth = 1; B.beginPath();
+  for (const h of hangers) {
+    const p = clamp((T - h.at) / 0.25);
+    if (p > 0) { B.moveTo(h.x, h.y1); B.lineTo(h.x, lerp(h.y1, h.y2, p)); }
+  }
+  B.stroke();
+  // deck: dark body, X truss between the roads, LED strips on both edges
+  if (deck > 0) {
+    const head = 1080 - 830 * deck;
+    B.fillStyle = '#100e12'; B.beginPath();
+    B.moveTo(head, deckTop(head)); B.lineTo(1080, deckTop(1080));
+    B.lineTo(1080, deckBottom(1080)); B.lineTo(head, deckBottom(head)); B.fill();
+    B.strokeStyle = led(SKY_LED, 0.45); B.lineWidth = 1; B.beginPath();
+    for (let x = 1080, nx; (nx = x - spacing(x) * 1.6) > head; x = nx) {
+      B.moveTo(x, deckTop(x)); B.lineTo(nx, deckBottom(nx));
+      B.moveTo(x, deckBottom(x)); B.lineTo(nx, deckTop(nx));
+    }
+    B.stroke();
+    B.globalCompositeOperation = 'lighter';
+    ledStrip(head, deckTop, 3, led(COOL_LED, 1));
+    ledStrip(head, deckBottom, 2.2, led(SKY_LED, 0.9));
+    if (deck < 1) glow(B, head, deckTop(head) + 4, 28, WHITE, 1);
+    drawCars(T, head, dim);
+  }
+  // main cables: smooth hanging curves drawn outward from the tower tops
+  if (cable > 0) {
+    B.globalCompositeOperation = 'lighter';
+    B.strokeStyle = led(COOL_LED, 0.95); B.lineWidth = 2;
+    B.shadowBlur = 4; B.shadowColor = B.strokeStyle;
+    const tips = [];
+    B.beginPath();
+    for (const s of strands) tips.push(
+      quadPart(B, s.front, s.mid, s.back, cable / 2),
+      quadPart(B, s.back, s.mid, s.front, cable / 2),
+      quadPart(B, s.front, s.right, s.rightEnd, cable),
+      quadPart(B, s.back, s.left, s.leftEnd, cable));
+    B.stroke(); B.shadowBlur = 0;
+    if (cable < 1) for (const t of tips) glow(B, t[0], t[1], 18, WHITE, 1);
+  }
+  // red aviation lights blink on the tower tops
+  B.globalCompositeOperation = 'lighter';
+  if (rise >= 1 && (T * 1.1) % 1 < 0.45)
+    for (const tw of [FRONT, BACK]) for (const side of [-1, 1])
+      glow(B, pillarX(tw, side), tw.top - 6, tw.w + 4, '255,40,30', 1);
+  B.globalCompositeOperation = 'source-over';
+}
+
+// ---- drone pictures: fill a silhouette, one drone per grid point ----
+function shapeFromMask(paint, colorOf) {
+  pixelScale(MK); MK.clearRect(0, 0, 540, 300);
+  MK.setTransform(0.5, 0, 0, 0.5, 0, 0); MK.fillStyle = '#fff'; paint(MK);
+  const d = MK.getImageData(0, 0, 540, 300).data;
+  const inside = (x, y) => {
+    x = Math.floor(x / 2); y = Math.floor(y / 2);
+    return x >= 0 && y >= 0 && x < 540 && y < 300 && d[(y * 540 + x) * 4 + 3] > 127;
+  };
+  // outline pixels, thinned to one drone every gap px
+  const border = [];
+  for (let y = 1; y < 600; y += 2) for (let x = 1; x < 1080; x += 2)
+    if (inside(x, y) && !(inside(x - 2, y) && inside(x + 2, y) &&
+        inside(x, y - 2) && inside(x, y + 2))) border.push([x, y]);
+  const thin = gap => {
+    const grid = new Map(), keep = [];
+    for (const p of border) {
+      const gx = Math.floor(p[0] / gap), gy = Math.floor(p[1] / gap);
+      let ok = true;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++)
+        for (const q of grid.get((gx + a) * 999 + gy + b) || [])
+          if ((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 < gap * gap) ok = false;
+      if (!ok) continue;
+      keep.push(p);
+      const key = gx * 999 + gy;
+      (grid.get(key) || grid.set(key, []).get(key)).push(p);
+    }
+    return keep;
+  };
+  let gap = 9, edge = thin(gap);
+  while (edge.length > DRONES * 0.45) edge = thin(gap *= 1.12);
+  // inner grid of 18x15 (cell aligned), squeezed until it fits 800
+  const need = DRONES - edge.length, m = gap * 0.55;
+  const fill = k => {
+    const pts = [];
+    for (let y = 7.5; y < 600; y += 15 * k) for (let x = 4.5; x < 1080; x += 18 * k)
+      if (inside(x, y) && inside(x - m, y) && inside(x + m, y) &&
+          inside(x, y - m) && inside(x, y + m)) pts.push([x, y]);
+    return pts;
+  };
+  let lo = 0.25, hi = 3;
+  for (let i = 0; i < 22; i++) {
+    const k = (lo + hi) / 2;
+    if (fill(k).length >= need) lo = k; else hi = k;
+  }
+  const grid = fill(lo);
+  const inner = Array.from({ length: need },
+    (_, i) => grid[Math.floor(i * grid.length / need)] || edge[i % edge.length]);
+  return edge.map(p => ({ x: p[0], y: p[1], rgb: colorOf(p[0], p[1], true) }))
+    .concat(inner.map(p => ({ x: p[0], y: p[1], rgb: colorOf(p[0], p[1], false) })));
+}
+
+// drone pictures are dotted LINE drawings, like the real Gwangalli show:
+// stroke the drawing on a mask, then space drones evenly along the strokes
+function shapeFromStroke(paint, colorOf) {
+  pixelScale(MK); MK.clearRect(0, 0, 540, 300);
+  MK.setTransform(0.5, 0, 0, 0.5, 0, 0);
+  MK.strokeStyle = '#fff'; MK.lineWidth = 5; MK.lineJoin = 'round'; MK.lineCap = 'round';
+  paint(MK);
+  const d = MK.getImageData(0, 0, 540, 300).data, pts = [];
+  for (let y = 0; y < 300; y++) for (let x = 0; x < 540; x++)
+    if (d[(y * 540 + x) * 4 + 3] > 127) pts.push([x * 2 + 1, y * 2 + 1]);
+  const thin = gap => {
+    const grid = new Map(), keep = [];
+    for (const p of pts) {
+      const gx = Math.floor(p[0] / gap), gy = Math.floor(p[1] / gap);
+      let ok = true;
+      for (let a = -1; a <= 1 && ok; a++) for (let b = -1; b <= 1 && ok; b++)
+        for (const q of grid.get((gx + a) * 999 + gy + b) || [])
+          if ((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 < gap * gap) { ok = false; break; }
+      if (!ok) continue;
+      keep.push(p);
+      const key = gx * 999 + gy;
+      (grid.get(key) || grid.set(key, []).get(key)).push(p);
+    }
+    return keep;
+  };
+  let lo = 4, hi = 40;
+  for (let i = 0; i < 14; i++) { const g = (lo + hi) / 2; if (thin(g).length >= DRONES) lo = g; else hi = g; }
+  const keep = thin(lo);
+  return Array.from({ length: DRONES }, (_, i) => {
+    const p = keep[Math.floor(i * keep.length / DRONES)];
+    return { x: p[0], y: p[1], rgb: colorOf(p[0], p[1]) };
+  });
+}
+const mixRgb = (a, b, f) => Math.round(a[0] + (b[0] - a[0]) * f) + ',' +
+  Math.round(a[1] + (b[1] - a[1]) * f) + ',' + Math.round(a[2] + (b[2] - a[2]) * f);
+
+// Busan's city bird: slender gull outline with feather lines
+function gullOutline(c) {
+  for (const side of [1, -1]) {
+    c.save(); c.translate(540, 0); c.scale(side, 1); c.translate(-540, 0);
+    c.beginPath(); c.moveTo(556, 226);
+    c.bezierCurveTo(600, 196, 660, 150, 720, 146);
+    c.bezierCurveTo(800, 142, 900, 196, 1010, 262);
+    c.lineTo(986, 268); c.lineTo(958, 258); c.lineTo(948, 270);
+    c.lineTo(920, 250); c.lineTo(908, 262); c.lineTo(880, 240);
+    c.bezierCurveTo(820, 206, 770, 186, 724, 188);
+    c.bezierCurveTo(670, 192, 610, 230, 560, 262);
+    c.stroke();
+    // flight feathers: three soft lines inside the wing
+    for (const k of [0.3, 0.55, 0.8]) {
+      c.beginPath(); c.moveTo(640 + k * 40, 196 + k * 4);
+      c.quadraticCurveTo(760, 170 + k * 14, 860 + k * 70, 214 + k * 34); c.stroke();
+    }
+    c.restore();
+  }
+  c.beginPath(); c.ellipse(540, 250, 20, 46, 0, 0, 7); c.stroke();
+  c.beginPath(); c.arc(540, 198, 17, 0, 7); c.stroke();
+  c.beginPath(); c.moveTo(533, 212); c.lineTo(540, 238); c.lineTo(547, 212); c.stroke();
+  c.beginPath(); c.moveTo(526, 290); c.lineTo(540, 326); c.lineTo(554, 290); c.stroke();
+}
+function seagullShape() {
+  return shapeFromStroke(gullOutline,
+    x => mixRgb([246, 238, 222], [160, 206, 242], clamp((Math.abs(x - 540) - 160) / 320)));   // ivory gull, pale-sky wing tips
+}
+
+// BUSAN: outlined letters, the way drone shows write words
+function busanShape() {
+  return shapeFromStroke(c => {
+    c.font = '900 300px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+    c.letterSpacing = '30px';
+    const m = c.measureText('BUSAN');
+    const w = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+    const h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+    c.translate(70, 80); c.scale(940 / w, 220 / h);
+    c.lineWidth = 5 * w / 940;
+    c.strokeText('BUSAN', m.actualBoundingBoxLeft, m.actualBoundingBoxAscent);
+  }, x => { const f = clamp((x - 70) / 940);   // rose -> apricot -> gold across the word
+    return f < 0.5 ? mixRgb([236, 160, 172], [242, 178, 132], f * 2) : mixRgb([242, 178, 132], [245, 204, 116], f * 2 - 1); });
+}
+
+// nearest-first matching: each drone grabs the closest free spot
+function matchNearest(from, to) {
+  const used = new Uint8Array(to.length), map = new Int32Array(from.length);
+  const order = from.map((p, i) => i)
+    .sort((a, b) => Math.abs(from[b].x - 540) - Math.abs(from[a].x - 540));
+  for (const i of order) {
+    let best = 0, bestD = Infinity;
+    for (let j = 0; j < to.length; j++) {
+      if (used[j]) continue;
+      const d = (to[j].x - from[i].x) ** 2 + (to[j].y - from[i].y) ** 2;
+      if (d < bestD) { bestD = d; best = j; }
+    }
+    used[best] = 1; map[i] = best;
+  }
+  return map;
+}
+
+const SHAPES = {}, drones = [];
+function setupDrones() {
+  SHAPES.seagull = seagullShape();
+  SHAPES.busan = busanShape();
+  const toBusan = matchNearest(SHAPES.seagull, SHAPES.busan);
+  const pads = [130, 320, 540, 760, 950];   // take-off spots on the sand
+  for (let i = 0; i < DRONES; i++) {
+    const gx = SHAPES.seagull[i].x;
+    const pad = pads.reduce((a, b) => Math.abs(b - gx) < Math.abs(a - gx) ? b : a);
+    drones.push({
+      i, b: toBusan[i],
+      sx: clamp(gx + (Math.random() - 0.5) * 260, 40, 1040), sy: 1150 + Math.random() * 110,
+      launch: 4 + Math.random() * 1.1, off: 20.4 + Math.random() * 1.6,
+      bend: (Math.random() - 0.5) * 90, drift: (Math.random() - 0.5) * 140
+    });
+  }
+}
+
+// where spot j of a picture is at time T (flapping wings)
+function shapePoint(name, j, T) {
+  const p = SHAPES[name][j];
+  if (name === 'seagull') {
+    const f = clamp((Math.abs(p.x - 540) - 40) / 420);
+    return { x: p.x, y: p.y - 55 * Math.sin(T * Math.PI * 2 / 0.8) * f ** 1.5, rgb: p.rgb };
+  }
+  return p;
+}
+
+// a drone wakes on the sand, lifts off and heads straight to its seagull spot
+function launchDrones(d, T) {
+  if (T < d.launch) return null;
+  const p = clamp((T - d.launch) / (6.3 - d.launch));
+  const to = shapePoint('seagull', d.i, T);
+  return {
+    x: lerp(d.sx, to.x, ease(p)), y: lerp(d.sy, to.y, 1 - (1 - p) ** 2.2),
+    rgb: to.rgb, r: p < 1 ? 2 : 4, a: clamp((T - d.launch) / 0.2)
+  };
+}
+
+// fly from one picture to the next on a gently bent path (1.4 s)
+function morph(d, fromName, fi, t0, toName, ti, T) {
+  const a = shapePoint(fromName, fi, t0), b = shapePoint(toName, ti, T);
+  const e = ease(clamp((T - t0) / 1.4));
+  const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+  const bow = d.bend * Math.sin(Math.PI * e) * Math.min(1, len / 200);
+  return {
+    x: lerp(a.x, b.x, e) - dy / len * bow, y: lerp(a.y, b.y, e) + dx / len * bow,
+    rgb: e < 0.5 ? a.rgb : b.rgb, r: 4, a: 1, moving: e > 0 && e < 1
+  };
+}
+
+function dronePos(d, T) {
+  if (T < 4 || T >= d.off) return null;
+  if (T < 13) return launchDrones(d, T);                       // lift off, then the seagull
+  if (T < 20) return morph(d, 'seagull', d.i, 13, 'busan', d.b, T);
+  // 20 s: one white flash as BUSAN, then drift up and switch off one by one
+  const p = shapePoint('busan', d.b, T), u = Math.max(0, T - 20.3);
+  return {
+    x: p.x + d.drift * u, y: p.y - 70 * u - 50 * u * u, rgb: WHITE,
+    // one soft white pulse: the glow swells, the glyphs stay
+    r: 4 + 0.9 * Math.sin(Math.PI * clamp((T - 20) / 0.6)),
+    a: Math.min(1, (d.off - T) / 0.25), moving: u > 0
+  };
+}
+
+const sprites = {};
+function droneSprite(rgb, r) {
+  const key = rgb + '|' + r;
+  if (sprites[key]) return sprites[key];
+  const [s, c] = makeCanvas(16, 16), core = 1.1 / r;
+  const g = c.createRadialGradient(8, 8, 0, 8, 8, 8);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(core * 0.5, rgba(rgb, 1));
+  g.addColorStop(core, rgba(rgb, 0.9));
+  g.addColorStop(Math.min(0.99, core * 1.35), rgba(rgb, 0.12));
+  g.addColorStop(1, rgba(rgb, 0));
+  c.fillStyle = g; c.fillRect(0, 0, 16, 16);
+  return (sprites[key] = s);
+}
+function drawDrone(c, p) {
+  c.globalAlpha = p.a;
+  c.drawImage(droneSprite(p.rgb, p.r), p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+}
+
+// 800 drones: bright dot + small halo, added with 'lighter'
+const droneDots = [];   // drones printed as crisp dot glyphs after sampling
+function droneFormation(c, T) {
+  const low = [], tails = new Path2D();
+  droneDots.length = 0;
+  c.globalCompositeOperation = 'lighter';
+  for (const d of drones) {
+    const p = dronePos(d, T);
+    if (!p) continue;
+    if (p.moving) {
+      const q = dronePos(d, T - 0.1);
+      if (q) { tails.moveTo(q.x, q.y); tails.lineTo(p.x, p.y); }
+    }
+    if (p.y > 790) { low.push(p); continue; }
+    droneDots.push({ x: p.x, y: p.y, rgb: p.rgb, a: p.a, r: p.r, s: d.i, T });
+    drawDrone(c, { x: p.x, y: p.y, rgb: p.rgb, r: 3.2, a: p.a * 0.9 });
+    const k = clamp(p.x / CELL_W | 0, 0, COLS - 1), w = 0.012 * p.a, n = nums(p.rgb);
+    colI[k] += w; colR[k] += w * n[0]; colG[k] += w * n[1]; colB[k] += w * n[2];
+  }
+  c.globalAlpha = 1; c.strokeStyle = 'rgba(245,235,220,0.3)'; c.lineWidth = 1.2;
+  c.stroke(tails);
+  c.globalCompositeOperation = 'source-over';
+  return low;
+}
+
+// ---- fireworks ----
+let shells = [];
+function planFireworks() {
+  shells = []; shellNo = 0;
+  const add = (L, type, x, big, rgb) => {
+    type = type || ['peony', 'willow', 'crackle'][Math.random() * 3 | 0];
+    const willow = type === 'willow', n = big ? 110 : 70 + (Math.random() * 21 | 0);
+    shells.push({
+      L, type, n, x: x || 260 + Math.random() * 780,
+      yb: big ? 110 + Math.random() * 60 : 90 + Math.random() * 330,
+      R: big ? 240 : 120 + Math.random() * 70,
+      rgb: rgb || nextShellColor(),
+      k: willow ? 1.6 : 2.4, g: willow ? 120 : 55,
+      life: big ? 3.2 : willow ? 2.6 : 2, trail: willow ? 0.75 : 0.32,
+      dir: Float32Array.from({ length: n }, (_, i) => i / n * 6.283 + Math.random() * 0.08),
+      spd: Float32Array.from({ length: n }, () => 0.6 + Math.random() * 0.4)
+    });
+  };
+  for (let t = 20; t < 23.9; t += 0.5) add(t + Math.random() * 0.2);   // 2 per second
+  for (let t = 24; t < 28.9; t += 0.25) add(t + Math.random() * 0.1);  // 4 per second
+  [[250, '240,150,170'], [540, GOLD], [830, '232,232,240']]       // finale: rose, gold, silver
+    .forEach(([x, rgb]) => add(28.1, 'willow', x, true, rgb));
+}
+// spark position with air drag (k) and gravity (g), closed form
+function sparkAt(s, i, a) {
+  const e = (1 - Math.exp(-s.k * a)) / s.k, v = s.R * s.k * s.spd[i];
+  return [s.x + Math.cos(s.dir[i]) * v * e,
+    s.yb + Math.sin(s.dir[i]) * v * e + s.g * (a - e) / s.k];
+}
+function launchRocket(c, s, p) {
+  // rocket climbs from a barge by the deck, dragging a spark tail
+  const y0 = deckTop(Math.max(260, s.x)) - 4;
+  const yAt = q => lerp(y0, s.yb, 1 - (1 - clamp(q)) ** 2);
+  c.strokeStyle = 'rgba(255,214,160,0.75)'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(s.x, yAt(p - 0.2)); c.lineTo(s.x, yAt(p)); c.stroke();
+  glow(c, s.x, yAt(p), 7, '255,232,190', 1);
+}
+// burst = radial spokes: each spark draws the path it just travelled
+const fwDots = [];   // firework sparks printed as crisp glyphs after sampling
+function drawBurst(c, s, a) {
+  const fade = (1 - a / s.life) ** 1.3, blink = Math.floor(a * 14);
+  for (let i = 0; i < s.n; i++) {
+    if (a > s.life * 0.55 && hash(i * 7.3 + blink) < 0.35) continue;
+    const col = a < 0.1 ? WHITE : s.rgb;
+    for (let j = 0; j < 4; j++) {
+      const aj = a - s.trail * j / 4;
+      if (aj < 0) break;
+      const p = sparkAt(s, i, aj);
+      fwDots.push({ x: p[0], y: p[1], rgb: col, a: fade * [1, 0.7, 0.45, 0.25][j], ch: ['*', '+', '.', "'"][j], pri: 3 - j });
+    }
+  }
+  c.globalAlpha = 0.45;
+  for (let seg = 0; seg < 4; seg++) {
+    const a1 = Math.max(0, a - s.trail * seg / 4), a0 = Math.max(0, a - s.trail * (seg + 1) / 4);
+    if (a1 <= a0) break;
+    c.beginPath();
+    for (let i = 0; i < s.n; i++) {
+      if (a > s.life * 0.55 && hash(i * 7.3 + blink) < 0.35) continue;  // twinkle
+      const p0 = sparkAt(s, i, a0), p1 = sparkAt(s, i, a1);
+      c.moveTo(p0[0], p0[1]); c.lineTo(p1[0], p1[1]);
+    }
+    c.strokeStyle = rgba(a < 0.1 ? WHITE : s.rgb, fade * [1, 0.55, 0.3, 0.14][seg]);
+    c.lineWidth = [2.4, 1.8, 1.3, 1][seg];
+    c.stroke();
+  }
+  c.globalAlpha = 1;
+  if (s.type === 'crackle' && a > 1.1) {   // tiny white pops near the end
+    c.fillStyle = 'rgba(255,255,255,0.9)';
+    for (let i = 0; i < s.n; i++) if (hash(i * 3.1 + Math.floor(a * 22)) < 0.3) {
+      const p = sparkAt(s, i, a);
+      c.fillRect(p[0] + (hash(i + a) - 0.5) * 20, p[1] + (hash(i - a) - 0.5) * 20, 3, 3);
+    }
+  }
+  const k0 = clamp((s.x - s.R) / CELL_W | 0, 0, COLS - 1);
+  const k1 = clamp((s.x + s.R) / CELL_W | 0, 0, COLS - 1), n = nums(s.rgb);
+  for (let k = k0; k <= k1; k++) {
+    const w = 0.08 * fade;
+    colI[k] += w; colR[k] += w * n[0]; colG[k] += w * n[1]; colB[k] += w * n[2];
+  }
+}
+function fireworksShow(c, T) {
+  c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+  let fired = 0;
+  for (const s of shells) {
+    if (T < s.L) continue;
+    const age = T - s.L - 0.9;
+    if (age < 0) { launchRocket(c, s, (T - s.L) / 0.9); continue; }
+    fired++;
+    if (age < s.life) drawBurst(c, s, age);
+  }
+  c.globalCompositeOperation = 'source-over';
+  return fired;
+}
+// each burst brightens sky and sea just a little
+function burstFlash(c, T) {
+  for (const s of shells) {
+    const a = T - s.L - 0.9;
+    if (a >= 0 && a < 0.3) glow(c, s.x, s.yb, 420, s.rgb, 0.025 * (1 - a / 0.3));
+  }
+}
+
+// finale: gold and silver niagara pouring from the lower deck into the sea
+function niagaraFinale(c, T) {
+  if (T < 24 || T > 29.6) return;
+  const fade = T > 29 ? 1 - (T - 29) / 0.6 : 1;
+  c.lineCap = 'butt';
+  ['232,232,240', '245,190,150'].forEach((rgb, odd) => {   // niagara: silver ivory + pale apricot
+    const curtain = new Path2D(), sparks = new Path2D(), echo = new Path2D();
+    let n = 0;
+    for (let x = 1078; x > 252; x -= spacing(x) * 0.6, n++) {
+      if (n % 2 !== odd) continue;
+      const on = clamp((T - 24 - 2.5 * (1078 - x) / 830) / 0.5);
+      if (on <= 0) break;
+      const y0 = deckBottom(x), y1 = waterAt(x), drop = (y1 - y0) * on;
+      curtain.moveTo(x, y0); curtain.lineTo(x + 1, y0 + drop);
+      for (let k = 0; k < 3; k++) {
+        const ph = (T * 1.4 + hash(x + k * 17)) % 1, y = y0 + (y1 - y0) * ph * ph;
+        if (y < y0 + drop) { sparks.moveTo(x, y); sparks.lineTo(x, Math.min(y + 12, y1)); }
+      }
+      if (on >= 1) {   // its reflection on the water
+        const w = Math.sin(T * 6 + x) * 2;
+        echo.moveTo(x + w, y1 + 2);
+        echo.lineTo(x - w, Math.min(SEA_END, y1 + (y1 - y0) * 0.7));
+      }
+    }
+    c.lineWidth = 1.2; c.strokeStyle = rgba(rgb, 0.5 * fade); c.stroke(curtain);
+    c.lineWidth = 2.2; c.strokeStyle = rgba(rgb, fade); c.stroke(sparks);
+    c.setLineDash([5, 4]); c.lineDashOffset = -T * 40;
+    c.lineWidth = 1.2; c.strokeStyle = rgba(rgb, 0.25 * fade); c.stroke(echo);
+    c.setLineDash([]);
+  });
+}
+
+function drawSea(c) {
+  const g = c.createLinearGradient(0, HORIZON, 0, SEA_END);
+  g.addColorStop(0, '#0b0a10'); g.addColorStop(1, '#040305');
+  c.fillStyle = g; c.fillRect(0, HORIZON, W, SEA_END - HORIZON);
+}
+function reflectInSea(T) {
+  pixelScale(M); M.fillStyle = '#000'; M.fillRect(0, 0, LW, 267);
+  M.drawImage(front, 0, 0); M.drawImage(bridge, 0, 0);
+  R.globalCompositeOperation = 'source-over'; R.clearRect(0, 0, LW, 110);
+  // flipped, stretched 1.6x, each row swaying sideways
+  for (let j = 0; j < 110; j++) {
+    const amp = (2 + 4 * j / 110) / 3;
+    const dx = Math.sin(j * 0.8 + T * 3) * amp + Math.sin(j * 0.31 - T * 1.3) * amp * 0.5;
+    R.drawImage(mirror, 0, 266 - j / 1.6, LW, 1, dx, j, LW, 1);
+  }
+  // multiply by itself: only real lights survive
+  R.globalCompositeOperation = 'multiply'; R.drawImage(water, 0, 0);
+  R.globalCompositeOperation = 'source-over';
+  // light pillars under drones and fireworks high in the sky
+  for (let k = 0; k < COLS; k++) if (colI[k] > 0.02) {
+    const n = colI[k];
+    R.fillStyle = rgba((colR[k] / n | 0) + ',' + (colG[k] / n | 0) + ',' + (colB[k] / n | 0),
+      Math.min(0.6, n));
+    R.fillRect(k * 3, 3, 3, 107);
+  }
+  // cut every row with broken ripples
+  R.globalCompositeOperation = 'destination-out';
+  for (let j = 0; j < 110; j++)
+    R.drawImage(waves, 0, j, LW + 120, 1, -((T * (8 + (j % 5) * 4)) % 120), j, LW + 120, 1);
+  pixelScale(P); P.globalCompositeOperation = 'lighter'; P.globalAlpha = 0.5;
+  P.drawImage(water, 0, 267);
+  P.globalAlpha = 1; P.globalCompositeOperation = 'source-over';
+}
+function drawBeach(c, T) {
+  const g = c.createLinearGradient(0, SEA_END, 0, SCENE_H);
+  g.addColorStop(0, '#0a0f1f'); g.addColorStop(1, '#030406');
+  c.fillStyle = g; c.fillRect(0, SEA_END, W, SCENE_H - SEA_END);
+  // three foam lines washing up and sliding back
+  c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+  for (let k = 0; k < 3; k++) {
+    const base = 1140 + k * 36 + Math.sin(T * 0.45 + k * 1.9) * 16;
+    c.beginPath();
+    for (let x = 0; x <= W; x += 24) {
+      const y = base + Math.sin(x * 0.011 + T * 0.6 + k * 2) * 7 +
+        Math.sin(x * 0.029 - T * 0.4 + k) * 3;
+      if (x) c.lineTo(x, y); else c.moveTo(x, y);
+    }
+    c.setLineDash([140 - k * 30, 30 + k * 20]); c.lineDashOffset = -T * (14 + k * 6);
+    c.strokeStyle = rgba('214,232,240', 0.8 - k * 0.22); c.lineWidth = 3 - k * 0.7;
+    c.shadowBlur = 3; c.shadowColor = 'rgba(200,225,235,0.8)'; c.stroke();   // surf: pale aqua
+  }
+  c.setLineDash([]); c.shadowBlur = 0; c.globalCompositeOperation = 'source-over';
+}
+
+// stage 1: paint the photo on the small canvas
+function paintPhoto(T) {
+  pixelScale(F); F.clearRect(0, 0, LW, LH); F.drawImage(city, 0, 0);
+  sceneScale(F);
+  towers.forEach((t, i) => {
+    if ((T * 0.9 + i * 0.37) % 1 < 0.4) glow(F, t.x, t.top - 4, 8, '255,40,30', 1);
+  });
+  colI.fill(0); colR.fill(0); colG.fill(0); colB.fill(0); fwDots.length = 0;
+  const low = droneFormation(F, T), fired = fireworksShow(F, T);
+  drawBridge(T);
+  pixelScale(P); P.drawImage(sky, 0, 0);
+  sceneScale(P); drawStars(P, T);
+  pixelScale(P); P.drawImage(front, 0, 0);
+  sceneScale(P); drawSea(P);
+  reflectInSea(T);
+  pixelScale(P); P.drawImage(bridge, 0, 0);
+  sceneScale(P); drawBeach(P, T);
+  P.globalCompositeOperation = 'lighter';
+  for (const d of low) drawDrone(P, d);
+  P.globalAlpha = 1;
+  niagaraFinale(P, T); burstFlash(P, T);
+  P.globalCompositeOperation = 'source-over';
+  return fired;
+}
+
+// stage 2: sample the photo into 120 x 86 cells and print letters
+const lum = new Float32Array(N), hot = new Int32Array(N);
+const gx = new Float32Array(N), gy = new Float32Array(N);
+const power = new Float32Array(N), coherent = new Float32Array(N);
+const angle = new Float32Array(N), hist = new Uint32Array(64), colorCache = [];
+function lineGlyph(e) {
+  const x = Math.cos(e), y = Math.sin(e);
+  if (Math.abs(y) < 0.38) return '-';
+  if (Math.abs(x) < 0.38) return '|';
+  return x * y < 0 ? '/' : '\\';
+}
+function sampleToAscii() {
+  const px = P.getImageData(0, 0, LW, LH).data;
+  // mean and brightest pixel of each 3x5 block (= one 9x15 cell)
+  for (let cy = 0; cy < ROWS; cy++) for (let cx = 0; cx < COLS; cx++) {
+    let sum = 0, max = -1, at = 0;
+    for (let y = 0; y < 5; y++) {
+      let i = ((cy * 5 + y) * LW + cx * 3) * 4;
+      for (let x = 0; x < 3; x++, i += 4) {
+        const l = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+        sum += l; if (l > max) { max = l; at = i; }
+      }
+    }
+    const k = cy * COLS + cx;
+    lum[k] = Math.min(1, Math.pow((0.5 * sum / 15 + 0.5 * max) / 255, 0.9)); hot[k] = at;
+  }
+  // Sobel filter on the cell brightness grid
+  const L = (x, y) => lum[clamp(y, 0, ROWS - 1) * COLS + clamp(x, 0, COLS - 1)];
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const k = y * COLS + x;
+    gx[k] = L(x + 1, y - 1) + 2 * L(x + 1, y) + L(x + 1, y + 1)
+      - L(x - 1, y - 1) - 2 * L(x - 1, y) - L(x - 1, y + 1);
+    gy[k] = L(x - 1, y + 1) + 2 * L(x, y + 1) + L(x + 1, y + 1)
+      - L(x - 1, y - 1) - 2 * L(x, y - 1) - L(x + 1, y - 1);
+  }
+  // structure tensor over 3x3 cells: edge strength and direction
+  hist.fill(0);
+  let lit = 0;
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    let xx = 0, yy = 0, xy = 0;
+    for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) {
+      const j = clamp(y + b, 0, ROWS - 1) * COLS + clamp(x + a, 0, COLS - 1);
+      xx += gx[j] * gx[j]; yy += gy[j] * gy[j]; xy += gx[j] * gy[j];
+    }
+    const k = y * COLS + x, s = Math.sqrt(xx + yy);
+    power[k] = s;
+    coherent[k] = s > 0 ? Math.hypot(xx - yy, 2 * xy) / (xx + yy) : 0;
+    angle[k] = 0.5 * Math.atan2(2 * xy, xx - yy) + Math.PI / 2;  // edge runs across the gradient
+    if (lum[k] >= 0.07) { hist[Math.min(63, s * 4 | 0)]++; lit++; }
+  }
+  let cut = 63, acc = 0;
+  while (cut > 0 && (acc += hist[cut]) < lit * 0.2) cut--;
+  const edgeMin = Math.max(0.5, cut / 4);   // top 20% gradients become line glyphs
+  pixelScale(A); A.clearRect(0, 0, W, SCENE_H);
+  A.font = 'bold 13px Menlo, Consolas, "Courier New", monospace';
+  A.textBaseline = 'top';
+  let count = 0;
+  // cells taken by a drone (and its halo) print the drone, not the sampled glow
+  const dotAt = new Map(), halo = new Set();
+  for (const p of droneDots) {
+    const cx = clamp(Math.round(p.x / CELL_W - 0.5), 0, COLS - 1), cy = clamp(Math.round(p.y / CELL_H - 0.5), 0, ROWS - 1);
+    const base = 0.78 + 0.22 * hash(p.s * 1.7), tw = 0.88 + 0.12 * Math.sin(p.T * 5 + p.s);
+    const wave = 0.85 + 0.15 * Math.sin(p.x * 0.012 - p.T * 4);
+    const spark = hash(p.s * 3.3 + Math.floor(p.T * 9)) < 0.015;
+    const v = p.r > 5 || spark ? 1 : p.a * base * tw * wave;
+    dotAt.set(cy * COLS + cx, { rgb: spark ? WHITE : p.rgb, a: v,
+      ch: v > 0.97 ? '*' : v > 0.5 ? '\u2022' : 'o', pri: 9 });
+    for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) halo.add(clamp(cy + b, 0, ROWS - 1) * COLS + clamp(cx + a, 0, COLS - 1));
+  }
+  for (const p of fwDots) {
+    if (p.y > 790 || p.a < 0.08) continue;
+    const cx = Math.round(p.x / CELL_W - 0.5), cy = Math.round(p.y / CELL_H - 0.5);
+    if (cx < 0 || cy < 0 || cx >= COLS || cy >= ROWS) continue;
+    const k = cy * COLS + cx, q = dotAt.get(k);
+    if (!q || q.pri < p.pri) dotAt.set(k, p);
+  }
+  for (let k = 0; k < N; k++) {
+    const b = lum[k];
+    if (dotAt.has(k)) continue;
+    const bloom = halo.has(k) && power[k] < edgeMin * 1.5;
+    if (bloom && b < 0.16) continue;
+    if (b < 0.1) {             // empty night: faint, slowly twinkling dust above the sea
+      const h = (k * 2654435761 >>> 0) % 1000, yy = k / COLS | 0;
+      if (h < 26 && yy < 52 && !dotAt.has(k)) {
+        const tw = 0.5 + 0.5 * Math.sin(curT * (1 + h % 7 * 0.3) + h);
+        A.fillStyle = 'rgba(225,218,205,' + (0.16 + 0.3 * tw).toFixed(2) + ')';
+        A.fillText(h < 4 ? '+' : h < 12 ? "'" : '.', (k % COLS) * CELL_W + 0.5, yy * CELL_H + 1);
+      }
+      continue;
+    }
+    let ch = RAMP[1 + Math.min(RAMP.length - 2,
+      Math.floor(((b - 0.1) / 0.9) ** 0.8 * (RAMP.length - 1)))];
+    if (power[k] >= edgeMin && coherent[k] > 0.45) ch = lineGlyph(angle[k]);
+    if (bloom) ch = b > 0.35 ? ':' : '.';
+    // a lone bright cell in the dark (a star, a far lamp) prints as a point, not a letter
+    { const x = k % COLS, y = k / COLS | 0; let near = 0;
+      for (let b2 = -1; b2 <= 1; b2++) for (let a2 = -1; a2 <= 1; a2++)
+        if ((a2 || b2) && lum[clamp(y + b2, 0, ROWS - 1) * COLS + clamp(x + a2, 0, COLS - 1)] >= 0.1) near++;
+      if (near <= 1) ch = b > 0.6 ? '*' : b > 0.3 ? '+' : '.'; }
+    // colour: hue of the brightest pixel, max channel = 1, times brightness
+    const i = hot[k], r = px[i], g = px[i + 1], bl = px[i + 2];
+    const f = (150 + 105 * Math.sqrt(b)) / Math.max(r, g, bl, 1);
+    let r2 = r * f, g2 = g * f, b2 = bl * f;
+    const gy = (r2 + g2 + b2) / 3;   // push away from grey: richer colour
+    const sat = v => Math.max(0, Math.min(255, gy + (v - gy) * 1.35));
+    r2 = sat(r2); g2 = sat(g2); b2 = sat(b2);
+    const key = (r2 >> 3) << 10 | (g2 >> 3) << 5 | (b2 >> 3);
+    A.fillStyle = colorCache[key] || (colorCache[key] = 'rgb(' + ((key >> 10) << 3) + ',' +
+      ((key >> 5 & 31) << 3) + ',' + ((key & 31) << 3) + ')');
+    A.fillText(ch, (k % COLS) * CELL_W + 0.5, (k / COLS | 0) * CELL_H + 1);
+    count++;
+  }
+  // drones: one bright dot glyph each, brightest ones as a star
+  for (const [k, p] of dotAt) {
+    const n = nums(p.rgb), a = p.a;
+    const g2 = p.pri === 9 ? 0.55 + 0.45 * a : a;   // drones never go muddy; sparks fade out
+    A.fillStyle = 'rgb(' + (n[0] * g2 | 0) + ',' + (n[1] * g2 | 0) + ',' + (n[2] * g2 | 0) + ')';
+    A.fillText(p.ch, (k % COLS) * CELL_W + 0.5, (k / COLS | 0) * CELL_H + 1);
+    count++;
+  }
+  return count;
+}
+
+
+let curT = 0;
+function renderAt(T) {
+  curT = T;
+  paintPhoto(T); sampleToAscii();
+  const sky = out.createLinearGradient(0, 0, 0, SCENE_H);
+  sky.addColorStop(0, '#050506'); sky.addColorStop(0.62, '#0d0b10'); sky.addColorStop(1, '#0a0809');
+  out.fillStyle = sky; out.fillRect(0, 0, W, SCENE_H);
+  out.drawImage(letters, 0, 0);
+  out.save(); out.globalCompositeOperation = 'lighter';
+  out.globalAlpha = 0.35; out.filter = 'blur(4px)';
+  out.drawImage(letters, 0, 0); out.restore();
+}
+buildSky(); buildMarineCity(); buildRippleMask(); planHangers(); setupDrones();
+F.imageSmoothingQuality = P.imageSmoothingQuality = 'high';
+let raf = 0, cycle = -1, lastPaint = 0, started = 0;
+function frame(now) {
+  raf = requestAnimationFrame(frame);
+  if (now - lastPaint < 31) return;
+  lastPaint = now;
+  const time = (now - started) / 1000, T = time % LOOP;
+  if (Math.floor(time / LOOP) !== cycle) { cycle = Math.floor(time / LOOP); planFireworks(); }
+  renderAt(T);
+}
+return {
+  start() {
+    if (still) { planFireworks(); renderAt(26.5); return; }
+    started = performance.now(); cycle = -1; lastPaint = 0;
+    raf = requestAnimationFrame(frame);
+  },
+  stop() { cancelAnimationFrame(raf); }
+};
+}
+function createSeoul(canvas, still) {
+  // ============================================================
+  //  namsan_tower.js : ASCII N Seoul Tower on Namsan, 30s loop
+  // ============================================================
+
+  // ---------- canvas and character grid ----------
+  const W = 1080, H = 1920;          // portrait 9:16
+  const SCENE_H = 1290;              // scene area height
+  const EDITOR_TOP = 1300;           // code editor starts here
+  const CELL_W = 12, CELL_H = 20;    // one character per cell
+  const COLS = 90, ROWS = 64;
+  const N = COLS * ROWS;
+  const LOOP = 30;                   // seconds per cycle
+  const FPS = 30;
+
+    const ctx = canvas.getContext('2d');
+  const scene = document.createElement('canvas');
+  scene.width = W; scene.height = SCENE_H;
+  const sctx = scene.getContext('2d');
+  const MONO = 'Menlo, Consolas, "DejaVu Sans Mono", "Courier New", monospace';
+  const FONT = 'bold 19px ' + MONO;
+
+  // ---------- deterministic randomness ----------
+  function makeRandom(seed) {
+    return () => {
+      seed = (seed + 0x6D2B79F5) | 0;
+      let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const rand = makeRandom(20261119);
+  function hash(a, b) {
+    let h = Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+
+  // small color helpers
+  const mix = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+  const scale = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+  const WHITE = [255, 255, 255];
+  const RED = [255, 40, 36];
+  const BLACK = [0, 0, 0];
+
+  // ---------- cell buffers ----------
+  const SKY = 0, FAR = 1, HILL = 2, TOWER = 3, MAST = 4, CITY = 5;
+  const kind = new Uint8Array(N);          // what occupies each cell
+  const baseCh = new Array(N).fill(' ');   // static picture
+  const baseCol = new Float32Array(N * 3);
+  const ch = new Array(N).fill(' ');       // this frame
+  const col = new Float32Array(N * 3);
+  const wide = new Uint8Array(N);          // hangul sign glyphs span two cells
+  const mark = new Uint32Array(N);         // one firework glyph per cell per frame
+  let stamp = 0;
+
+  const cellIndex = (c, r) => (c < 0 || r < 0 || c >= COLS || r >= ROWS) ? -1 : r * COLS + c;
+  const cellAtPx = (x, y) => cellIndex(Math.floor(x / CELL_W), Math.floor(y / CELL_H));
+  const isOpenSky = i => i >= 0 && kind[i] <= FAR;   // fireworks only light open sky
+
+  function setBase(i, chr, rgb, k) {
+    baseCh[i] = chr;
+    baseCol[i * 3] = rgb[0]; baseCol[i * 3 + 1] = rgb[1]; baseCol[i * 3 + 2] = rgb[2];
+    if (k !== undefined) kind[i] = k;
+  }
+  function put(i, chr, rgb) {
+    ch[i] = chr;
+    col[i * 3] = rgb[0]; col[i * 3 + 1] = rgb[1]; col[i * 3 + 2] = rgb[2];
+  }
+  function tint(i, rgb, k) {
+    col[i * 3] += rgb[0] * k; col[i * 3 + 1] += rgb[1] * k; col[i * 3 + 2] += rgb[2] * k;
+  }
+
+  // ---------- layer 0: night sky, navy above, orange city haze below ----------
+  function paintSky() {
+    for (let r = 0; r < ROWS; r++) {
+      const k = Math.min(1, (r * CELL_H + 10) / 900);
+      const tone = mix([16, 24, 66], [112, 64, 36], k * k);
+      for (let c = 0; c < COLS; c++) {
+        const i = cellIndex(c, r);
+        kind[i] = SKY;
+        if (hash(c, r) < 0.05 + 0.45 * k * k * k) {
+          const chr = hash(r + 11, c) < 0.2 + 0.5 * k ? ':' : '.';
+          setBase(i, chr, scale(tone, 0.55 + 0.45 * hash(c + 3, r)));
+        }
+      }
+    }
+  }
+
+  // ---------- layer 1: faint far ridge on the horizon ----------
+  const farRidgeY = x => 840 + 16 * Math.sin(x * 0.010 + 1.3) + 9 * Math.sin(x * 0.026 + 0.4) + 4 * Math.sin(x * 0.07);
+  function paintFarRidge() {
+    for (let c = 0; c < COLS; c++) {
+      const top = Math.floor(farRidgeY(c * CELL_W + 6) / CELL_H);
+      for (let r = top; r < ROWS; r++) {
+        const i = cellIndex(c, r);
+        kind[i] = FAR;
+        if (r === top) setBase(i, hash(c, 91) < 0.75 ? '-' : '.', [52, 56, 84]);
+        else setBase(i, hash(c, r + 50) < 0.3 ? '.' : ' ', [34, 36, 58]);
+      }
+    }
+  }
+
+  // ---------- layer 2: Namsan, a broad forested dome ----------
+  const PEAK_X = 540, PEAK_Y = 760, EDGE_Y = 980;
+  function hillY(x) {
+    const u = Math.min(1, Math.abs(x - PEAK_X) / 540);
+    const dome = PEAK_Y + (EDGE_Y - PEAK_Y) * (1 - Math.cos(u * Math.PI / 2));
+    // tree crowns roughen the ridge, but never at the very top
+    return dome - 5 * Math.abs(Math.sin(x * 0.045)) * Math.min(1, Math.max(0, u * 5 - 0.5));
+  }
+  const crestRow = [];
+  const hillTint = new Float32Array(N);   // how much tower light reaches each tree
+  let hillLit = [];
+  let lamps = [];
+
+  function paintHill() {
+    for (let c = -1; c <= COLS; c++) crestRow[c] = Math.floor(hillY(c * CELL_W + 6) / CELL_H);
+    // overlapping round tree clumps, painted back to front
+    const clumps = [];
+    for (let r = 36; r < ROWS + 2; r += 1.5)
+      for (let c = -4; c < COLS + 4; c += 3 + rand() * 1.6)
+        clumps.push({ c: c + rand(), r: r + rand() * 0.7, rx: 2.2 + rand() * 2.0, ry: 1.3 + rand() * 0.9 });
+
+    for (let c = 0; c < COLS; c++) {
+      const top = crestRow[c];
+      for (let r = top; r < ROWS; r++) {
+        const i = cellIndex(c, r);
+        kind[i] = HILL;
+        hillTint[i] = Math.max(0, 1 - Math.hypot(c - 45, (r - 38) * 1.6) / 16);
+        if (r === top) {
+          // ridge outline follows the slope
+          const slope = crestRow[c + 1] - crestRow[c - 1];
+          setBase(i, slope > 0 ? '\\' : slope < 0 ? '/' : '^', [72, 150, 82]);
+          continue;
+        }
+        let v = null;   // position inside the front-most clump: -1 top .. 1 bottom
+        for (const k of clumps) {
+          const ex = (c - k.c) / k.rx, ey = (r - k.r) / k.ry;
+          if (ex * ex + ey * ey <= 1) v = ey;
+        }
+        const d = 0.88 * (0.85 + 0.15 * hash(c, r));   // far away: a touch darker than the city
+        if (v === null) setBase(i, hash(c, r) < 0.4 ? '.' : ' ', scale([20, 52, 30], d));
+        else if (v < -0.45) setBase(i, '^', scale([76, 168, 86], d));   // sunlit crown
+        else if (v < 0.05) setBase(i, 'A', scale([52, 128, 64], d));
+        else if (v < 0.5) setBase(i, 'n', scale([34, 92, 48], d));      // shaded underside
+        else setBase(i, '.', scale([22, 58, 32], d));
+      }
+    }
+    // street lamps along the ridge road
+    for (const c of [6, 12, 18, 24, 29, 34, 56, 61, 66, 72, 78, 84]) {
+      const i = cellIndex(c, crestRow[c] + 2 + (c % 2));
+      if (i < 0) continue;
+      setBase(i, '.', [255, 205, 90]);
+      lamps.push(i);
+    }
+  }
+
+  // ---------- layer 3: N Seoul Tower (cols 41..49, rows 4..37) ----------
+  const TOWER_BASE = 38, TIP_ROW = 4;
+  const TOWER_SPAN = TOWER_BASE - TIP_ROW;
+  const towerCells = [];
+  function addTower(c, r, chr, part, shade) {
+    const i = cellIndex(c, r);
+    if (kind[i] === HILL) return;           // trees hide the foot of the tower
+    towerCells.push({ c, r, i, ch: chr, part, shade, born: 0, flash: 0 });
+  }
+  function buildTower() {
+    // antenna: red-white lattice, 3 cells wide at the bottom, 1 at the top
+    for (let r = 5; r <= 9; r++) addTower(45, r, r % 2 ? 'x' : '|', 'antenna', 1);
+    for (let r = 10; r <= 13; r++) {
+      const even = r % 2 === 0;
+      addTower(44, r, even ? '/' : '\\', 'antenna', 1);
+      addTower(45, r, 'x', 'antenna', 0.85);
+      addTower(46, r, even ? '\\' : '/', 'antenna', 0.6);
+    }
+    // short neck between antenna and drum
+    addTower(44, 14, '|', 'neck', 1); addTower(45, 14, '#', 'neck', 0.8); addTower(46, 14, '|', 'neck', 0.5);
+    // observatory drum: rounded caps and six window bands
+    for (let c = 42; c <= 48; c++) addTower(c, 15, '_', 'drum', 0.9);
+    const bandShade = [0.72, 1.0, 0.84, 0.95, 0.68, 0.88];
+    for (let r = 16; r <= 21; r++) {
+      const cap = r === 16 || r === 21;
+      addTower(41, r, cap ? '(' : '|', 'drum', 0.9);
+      addTower(42, r, r % 2 ? '@' : '|', 'glass', 1);      // vertical glass highlight
+      for (let c = 43; c <= 48; c++) addTower(c, r, r % 2 ? '=' : '#', 'drum', bandShade[r - 16] * (1 - (c - 43) * 0.09));
+      addTower(49, r, cap ? ')' : '|', 'drum', 0.45);
+    }
+    addTower(42, 22, '\\', 'drum', 0.8);
+    for (let c = 43; c <= 47; c++) addTower(c, 22, '_', 'drum', 0.7);
+    addTower(48, 22, '/', 'drum', 0.5);
+    // shaft: lit from the left, seam down the middle, ring deck at 30%
+    for (let r = 23; r < TOWER_BASE; r++) {
+      if (r === 27) {
+        addTower(43, r, '(', 'deck', 0.9);
+        for (let c = 44; c <= 46; c++) addTower(c, r, '=', 'deck', 1 - (c - 44) * 0.25);
+        addTower(47, r, ')', 'deck', 0.45);
+        continue;
+      }
+      if (r === 28) {
+        addTower(43, r, '\\', 'deck', 0.8);
+        for (let c = 44; c <= 46; c++) addTower(c, r, '-', 'deck', 0.9 - (c - 44) * 0.25);
+        addTower(47, r, '/', 'deck', 0.4);
+        continue;
+      }
+      addTower(44, r, '@#8'[r % 3], 'shaft', 1);
+      addTower(45, r, [25, 31, 34].includes(r) ? '=' : '|', 'shaft', 0.7);   // seam + small windows
+      addTower(46, r, ':-.'[r % 3], 'shaft', 0.42);
+    }
+    for (const t of towerCells) kind[t.i] = TOWER;
+    kind[cellIndex(45, TIP_ROW)] = TOWER;   // aviation light on the tip
+    // construction order: bottom row first, one cell at a time
+    const order = towerCells.slice().sort((a, b) => b.r - a.r || a.c - b.c);
+    order.forEach((t, k) => { t.born = 0.15 + (k / order.length) * 3.6; });
+  }
+
+  // ---------- small red-white transmitter mast left of the tower ----------
+  const mastCells = [];
+  function buildMast() {
+    for (let r = 21; r < TOWER_BASE; r++) {
+      const w = 1 + Math.round(3 * (r - 21) / 17);     // trapezoid: 1 cell up top, 4 at the base
+      const left = 37 - Math.floor((w - 1) / 2);
+      for (let k = 0; k < w; k++) {
+        const c = left + k;
+        const i = cellIndex(c, r);
+        if (kind[i] === HILL) continue;
+        const chr = w === 1 ? (r % 2 ? 'x' : '|')
+          : k === 0 ? '/' : k === w - 1 ? '\\' : ((r + c) % 2 ? '\\' : '/');
+        mastCells.push({ i, ch: chr, red: Math.floor((r - 21) / 2) % 2 === 0, shade: k === 0 ? 1 : 0.7 });
+        kind[i] = MAST;
+      }
+    }
+    kind[cellIndex(37, 20)] = MAST;
+  }
+
+  // ---------- layer 4: Seoul skyline in three depths ----------
+  const role = new Uint8Array(N);          // 1 window, 2 edge, 3 light, 4 sign
+  const winChar = new Array(N);
+  const winRGB = new Float32Array(N * 3), winDim = new Float32Array(N * 3);
+  const winLit = new Uint8Array(N), winHasDim = new Uint8Array(N);
+  const windows = [];
+  const outlines = [];
+  const roofLights = [];
+  const signs = [];
+  let litCount = 0;
+  const SIGN_WORDS = ['CAFE', '24H', '약국', '편의점', 'PC', 'BAR', '치킨', 'GS25', 'HOF', '노래방'];
+  const SIGN_COLORS = [[255, 90, 190], [80, 220, 255], [90, 255, 140]];
+  const WINDOW_COLORS = [[255, 205, 90], [255, 145, 50], [240, 238, 220]];
+  const LAYER_BRIGHT = [0.34, 0.6, 1.0];
+
+  function cityRow(layer, minW, maxW, topMin, topMax, gapMax) {
+    const row = [];
+    const types = layer === 0 ? ['back'] : ['office', 'apartment', 'stepped', 'office', 'apartment'];
+    let x = -Math.floor(rand() * 3);
+    while (x < COLS) {
+      const w = minW + Math.floor(rand() * (maxW - minW + 1));
+      const top = topMin + Math.floor(rand() * (topMax - topMin + 1));
+      row.push({ layer, x0: x, w, top, type: types[Math.floor(rand() * types.length)] });
+      x += w + Math.floor(rand() * (gapMax + 1));
+    }
+    return row;
+  }
+
+  function paintBuilding(b) {
+    const bright = LAYER_BRIGHT[b.layer];
+    const edge = scale([128, 136, 168], [0.4, 0.62, 1][b.layer]);
+    const step = b.type === 'stepped' ? Math.min(2, (b.w - 4) >> 1) : 0;
+    for (let r = b.top; r < ROWS; r++) {
+      const inset = r < b.top + 3 ? step : 0;
+      const left = b.x0 + inset, right = b.x0 + b.w - 1 - inset;
+      const ratio = 0.6 + 0.38 * hash(b.x0 * 7 + b.layer * 131, r);   // share of lit windows on this floor
+      for (let c = left; c <= right; c++) {
+        const i = cellIndex(c, r);
+        if (i < 0) continue;
+        kind[i] = CITY; wide[i] = 0; role[i] = 0;
+        const shoulder = step > 0 && r === b.top + 3 && (c < b.x0 + step || c > b.x0 + b.w - 1 - step);
+        if (r === b.top || shoulder) {   // roof rim
+          setBase(i, b.type === 'apartment' || shoulder ? '=' : '_', edge); role[i] = 2; continue;
+        }
+        if (c === left || c === right) { setBase(i, '|', edge); role[i] = 2; continue; }
+        if (b.type === 'apartment' && (c - b.x0) % 4 === 0) { setBase(i, '|', scale(edge, 0.7)); role[i] = 2; continue; }
+        const chr = b.type === 'back' ? (hash(c, r) < 0.5 ? '.' : ':') : b.type === 'apartment' ? '=' : '#';
+        const pick = hash(c, r * 2 + 9);
+        const hue = WINDOW_COLORS[pick < 0.5 ? 0 : pick < 0.8 ? 1 : 2];
+        const rgb = scale(hue, bright * (0.85 + 0.15 * (r - 46) / 18) * (0.8 + 0.2 * hash(r, c)));
+        role[i] = 1; winChar[i] = chr;
+        winLit[i] = hash(c * 3 + 1, r * 5 + b.layer) < ratio ? 1 : 0;
+        winRGB.set(rgb, i * 3);
+        winHasDim[i] = b.layer > 0 ? 1 : 0;
+        winDim.set(scale([42, 42, 56], bright), i * 3);
+        setBase(i, chr, rgb);
+      }
+    }
+  }
+
+  function placeExtra(c, r, chr, rgb) {
+    const i = cellIndex(c, r);
+    if (i < 0 || kind[i] === CITY || kind[i] === TOWER || kind[i] === MAST) return -1;
+    setBase(i, chr, rgb, CITY); role[i] = 0;
+    return i;
+  }
+
+  function addRoofExtras(b) {
+    // water tanks, antennas and red aviation lights
+    const bright = LAYER_BRIGHT[b.layer];
+    const step = b.type === 'stepped' ? Math.min(2, (b.w - 4) >> 1) : 0;
+    const mid = b.x0 + (b.w >> 1);
+    const roll = rand();
+    if (roll < 0.3 && b.w >= 6) {
+      placeExtra(b.x0 + step + 1, b.top - 1, 'n', scale([130, 128, 140], bright));
+      placeExtra(b.x0 + step + 2, b.top - 1, 'n', scale([130, 128, 140], bright));
+    } else if (roll < 0.55) {
+      for (let k = 1; k <= 3; k++) placeExtra(mid, b.top - k, '|', scale([150, 150, 165], bright));
+      const i = placeExtra(mid, b.top - 4, 'o', RED);
+      if (i >= 0) roofLights.push({ i, phase: rand() });
+    }
+    if (rand() < 0.3) {
+      const i = placeExtra(b.x0 + b.w - 2 - step, b.top - 1, 'o', RED);
+      if (i >= 0) roofLights.push({ i, phase: rand() });
+    }
+  }
+
+  function addCrane(b) {
+    // one tower crane over a front building
+    const m = b.x0 + 2, top = b.top, rgb = [215, 160, 60];
+    for (let r = top - 1; r >= top - 8; r--) placeExtra(m, r, '#', scale(rgb, 0.85));
+    for (let c = m - 4; c <= m + 9; c++) placeExtra(c, top - 9, '=', rgb);
+    placeExtra(m, top - 10, 'A', rgb);
+    placeExtra(m + 7, top - 8, '|', scale(rgb, 0.6));
+    placeExtra(m + 7, top - 7, '|', scale(rgb, 0.6));
+    placeExtra(m + 7, top - 6, 'J', rgb);
+    const i = placeExtra(m + 9, top - 10, 'o', RED);
+    if (i >= 0) roofLights.push({ i, phase: 0.3 });
+  }
+
+  function addSigns(front) {
+    // neon shop signs on the ground floor of the front row
+    for (const b of front) {
+      if (b.x0 < 28 || b.w < 6 || rand() > 0.8) continue;
+      const word = SIGN_WORDS[Math.floor(rand() * SIGN_WORDS.length)];
+      const glyphs = [...word];
+      const need = glyphs.reduce((n, g) => n + (g.charCodeAt(0) > 255 ? 2 : 1), 0);
+      if (need > b.w - 2) continue;
+      let c = b.x0 + 1 + ((b.w - 2 - need) >> 1);
+      const rgb = SIGN_COLORS[Math.floor(rand() * SIGN_COLORS.length)];
+      const cells = [];
+      for (const g of glyphs) {
+        const i = cellIndex(c, ROWS - 1);
+        if (i < 0) break;
+        const isWide = g.charCodeAt(0) > 255;
+        setBase(i, g, rgb, CITY); role[i] = 4; wide[i] = isWide ? 1 : 0;
+        cells.push(i);
+        if (isWide) {
+          const j = cellIndex(c + 1, ROWS - 1);
+          if (j >= 0) { setBase(j, ' ', BLACK, CITY); role[j] = 4; }
+        }
+        c += isWide ? 2 : 1;
+      }
+      signs.push({ cells, rgb, seed: Math.floor(rand() * 1000) });
+    }
+  }
+
+  function buildCity() {
+    const rows = [
+      cityRow(0, 3, 6, 46, 50, 0),     // far: narrow, small dim windows
+      cityRow(1, 5, 9, 48, 53, 1),     // middle
+      cityRow(2, 8, 14, 47, 52, 1),    // near: wide and bright
+    ];
+    rows.forEach(row => row.forEach(paintBuilding));
+    rows[1].concat(rows[2]).forEach(b => addRoofExtras(b));
+    const host = rows[2].find(b => b.x0 >= 58 && b.x0 <= 76);
+    if (host) addCrane(host);
+    addSigns(rows[2]);
+    // keep a quiet corner for the caption lines
+    for (let r = 60; r < ROWS; r++) for (let c = 0; c < 28; c++) {
+      const i = cellIndex(c, r);
+      setBase(i, ' ', BLACK, CITY); role[i] = 0; wide[i] = 0;
+    }
+    for (let i = 0; i < N; i++) {
+      if (role[i] === 1) {
+        windows.push({
+          i, chr: winChar[i], lit: !!winLit[i],
+          rgb: [winRGB[i * 3], winRGB[i * 3 + 1], winRGB[i * 3 + 2]],
+          dim: winHasDim[i] ? [winDim[i * 3], winDim[i * 3 + 1], winDim[i * 3 + 2]] : null,
+        });
+      } else if (role[i] === 2) outlines.push(i);
+    }
+    litCount = windows.filter(w => w.lit).length;
+  }
+
+  // ---------- glow ring around the observatory drum ----------
+  const halo = [];
+  function buildHalo() {
+    for (let r = 12; r <= 25; r++) for (let c = 38; c <= 52; c++) {
+      const i = cellIndex(c, r);
+      if (kind[i] !== SKY) continue;
+      const dx = c < 41 ? 41 - c : c > 49 ? c - 49 : 0;
+      const dy = r < 15 ? 15 - r : r > 22 ? r - 22 : 0;
+      const d = Math.max(dx, dy);
+      if (d < 1 || d > 3) continue;
+      if (hash(c + 40, r) > 1.15 - d * 0.22) continue;
+      halo.push({ i, d, r });
+    }
+  }
+
+  // ---------- stars: three sizes, some twinkle ----------
+  const stars = [];
+  const STAR_CH = ['.', '+', '*'];
+  const STAR_RGB = [[120, 130, 175], [190, 200, 235], [255, 255, 255]];
+  function placeStars() {
+    let tries = 0;
+    while (stars.length < 380 && tries++ < 6000) {
+      const r = Math.floor(Math.pow(rand(), 1.4) * 42), c = Math.floor(rand() * COLS);
+      const i = cellIndex(c, r);
+      if (kind[i] !== SKY) continue;
+      const roll = rand();
+      stars.push({ i, lvl: roll < 0.6 ? 0 : roll < 0.9 ? 1 : 2, twinkle: rand() < 0.35, phase: rand() * 6.28, speed: 1.5 + rand() * 3 });
+    }
+  }
+
+  // ---------- tower lighting program ----------
+  const LIGHTS = [
+    { at: 0,  name: 'white',   rgb: [225, 228, 238] },
+    { at: 4,  name: 'blue',    rgb: [50, 130, 255] },
+    { at: 8,  name: 'pink',    rgb: [255, 70, 170] },
+    { at: 12, name: 'gold',    rgb: [255, 185, 40] },
+    { at: 16, name: 'green',   rgb: [40, 235, 100] },
+    { at: 20, name: 'rainbow', rgb: null },
+  ];
+  const RAINBOW = [[255, 40, 40], [255, 140, 0], [255, 225, 0], [30, 220, 60], [40, 110, 255], [170, 50, 255]];
+
+  function phaseAt(t) {
+    let p = 0;
+    for (let k = 1; k < LIGHTS.length; k++) if (t >= LIGHTS[k].at) p = k;
+    return p;
+  }
+
+  function rainbowFlow(r, t) {
+    // one saturated color per window band, sliding upward
+    const k = Math.floor(r + t * 4);
+    return RAINBOW[((k % 6) + 6) % 6];
+  }
+
+  const phaseColor = (p, r, t) => LIGHTS[p].rgb || rainbowFlow(r, t);
+
+  function lightWave(r, t) {
+    // the new color climbs base to tip in 0.8s with a white-hot band riding its edge
+    const p = phaseAt(t);
+    if (p === 0) return { rgb: LIGHTS[0].rgb, hot: 0, p };
+    const h = (TOWER_BASE - r) / TOWER_SPAN;
+    const level = (t - LIGHTS[p].at) / 0.8 * (1 + 3 / TOWER_SPAN);
+    const ahead = level - h;
+    const rgb = ahead >= 0 ? phaseColor(p, r, t) : phaseColor(p - 1, r, t);
+    const hot = ahead >= 0 && ahead < 3 / TOWER_SPAN ? 1 - ahead * TOWER_SPAN / 6 : 0;
+    return { rgb, hot, p };
+  }
+
+  const LATTICE_WHITE = [236, 236, 240];
+  function towerCellColor(cell, t, wave) {
+    let rgb;
+    if (cell.part === 'antenna') rgb = scale(Math.floor((cell.r - 5) / 2) % 2 ? LATTICE_WHITE : [255, 46, 40], cell.shade);
+    else if (cell.part === 'glass') rgb = mix(WHITE, wave.rgb, 0.22);
+    else if (cell.part === 'drum') rgb = scale(wave.rgb, cell.shade);
+    else rgb = scale(mix(wave.rgb, WHITE, LIGHTS[wave.p].rgb ? 0.22 : 0), cell.shade);
+    if (wave.hot) rgb = mix(rgb, WHITE, wave.hot * 0.9);
+    const age = t - cell.born;
+    if (age < 0.25) rgb = mix(rgb, WHITE, 1 - age / 0.25);   // freshly built cell flashes white
+    if (cell.flash > t) rgb = WHITE;                           // glitter: color only, never the glyph
+    return rgb;
+  }
+
+  function twinkle(t) {
+    // Eiffel-style glitter: at most 4% of tower cells flash white for 0.1s
+    const limit = Math.floor(towerCells.length * 0.04);
+    let active = 0;
+    for (const c of towerCells) if (c.flash > t) active++;
+    for (let k = 0; k < 2 && active < limit; k++) {
+      if (Math.random() < 0.7) {
+        towerCells[Math.floor(Math.random() * towerCells.length)].flash = t + 0.1;
+        active++;
+      }
+    }
+  }
+
+  // ---------- sparks, fireworks, smoke ----------
+  const PALETTE = [[255, 45, 60], [255, 190, 40], [50, 255, 100], [60, 130, 255], [185, 75, 255], [255, 80, 190], [40, 240, 230]];
+  const GOLD = [255, 190, 60];
+  const SHAPES = ['chrysanthemum', 'double', 'ring', 'willow', 'palm', 'chrysanthemum', 'double'];
+  let particles = [], rockets = [], flashes = [], smoke = [], sparks = [], crackles = [];
+  let schedule = [], nextEvent = 0, burstCount = 0;
+
+  function spawnSpark(x, y, rgb, speed, t) {
+    sparks.push({ x, y, vx: (Math.random() - 0.5) * speed * 2, vy: -Math.random() * speed - 30, born: t, life: 0.45 + Math.random() * 0.35, rgb });
+  }
+
+  function makeBurst(rnd, tBurst, side, opts = {}) {
+    const x = side < 0 ? 60 + rnd() * 270 : 750 + rnd() * 270;
+    const yMin = opts.yMin ?? 120, yMax = opts.yMax ?? 700;
+    const y = yMin + rnd() * (yMax - yMin);
+    const a = PALETTE[Math.floor(rnd() * PALETTE.length)];
+    let b = PALETTE[Math.floor(rnd() * PALETTE.length)];
+    if (b === a) b = PALETTE[(PALETTE.indexOf(a) + 3) % PALETTE.length];
+    const rise = 0.75 + rnd() * 0.45 * ((1000 - y) / 900);
+    return {
+      tBurst, tLaunch: tBurst - rise, x, y,
+      type: opts.type || SHAPES[Math.floor(rnd() * SHAPES.length)],
+      R: opts.R || 130 + rnd() * 70, a, b,
+      mixed: rnd() < 0.35, crackle: rnd() < 0.4,
+    };
+  }
+
+  function scheduleFireworks(rnd) {
+    // 8-16s: one per second, 16-24s: two per second, then the finale
+    const list = [];
+    let side = 1;
+    for (let t = 8; t < 16; t += 1) list.push(makeBurst(rnd, t + rnd() * 0.25, side = -side));
+    for (let t = 16; t < 24; t += 0.5) list.push(makeBurst(rnd, t + rnd() * 0.2, side = -side));
+    list.push(...finaleBursts(rnd));
+    return list.sort((p, q) => p.tLaunch - q.tLaunch);
+  }
+
+  function finaleBursts(rnd) {
+    // 24-29s: big overlapping chrysanthemums on both sides, four per second
+    const list = [];
+    for (let k = 0; k < 20; k++) {
+      const t = 24 + k * 0.25 + rnd() * 0.1;
+      list.push(makeBurst(rnd, t, k % 2 ? 1 : -1, {
+        type: rnd() < 0.6 ? 'chrysanthemum' : 'double', R: 170 + rnd() * 30, yMin: 140, yMax: 650,
+      }));
+    }
+    // 29s: the biggest gold willows, left and right at once
+    list.push(makeBurst(rnd, 29, -1, { type: 'willow', R: 230, yMin: 260, yMax: 320 }));
+    list.push(makeBurst(rnd, 29, 1, { type: 'willow', R: 230, yMin: 260, yMax: 320 }));
+    return list;
+  }
+
+  function launchRocket(ev) {
+    // a rocket climbs from between the buildings, dragging a | . tail
+    rockets.push({ ev, x0: ev.x + (Math.random() - 0.5) * 60, y0: 1010, x: ev.x, y: 1010 });
+  }
+
+  function explode(ev, t) {
+    // burst: particles, white flash, sky glow, then drifting smoke
+    burstCount++;
+    flashes.push({ x: ev.x, y: ev.y, t0: t, R: ev.R, rgb: ev.a, frames: 0 });
+    const P = o => particles.push(Object.assign({
+      x: ev.x, y: ev.y, born: t, hist: [{ x: ev.x, y: ev.y, t }],
+      drag: 2.2, grav: 32, tailTime: 0.34, tailMax: 9, head: '*',
+      life: 1.8 + Math.random() * 0.7, rgb: ev.a, vis: true, cur: WHITE,
+    }, o));
+    const spray = (count, R, rgbA, rgbB, extra = {}) => {
+      const drag = extra.drag || 2.2;   // launch speed so the shell opens to radius R
+      for (let k = 0; k < count; k++) {
+        const ang = (k / count) * Math.PI * 2 + Math.random() * 0.08;
+        const s = R * drag * (0.9 + Math.random() * 0.1);
+        P(Object.assign({ vx: Math.cos(ang) * s, vy: Math.sin(ang) * s, rgb: rgbB && k % 2 ? rgbB : rgbA }, extra));
+      }
+    };
+    switch (ev.type) {
+      case 'chrysanthemum':
+        spray(60 + Math.floor(Math.random() * 21), ev.R, ev.a, ev.mixed ? ev.b : null, { tailMax: 6 + Math.floor(Math.random() * 5) });
+        break;
+      case 'double':   // outer shell plus a smaller inner shell in another color
+        spray(64, ev.R, ev.a, null, { tailMax: 8 });
+        spray(32, ev.R * 0.48, ev.b, null, { tailMax: 5, life: 1.6 });
+        break;
+      case 'ring': {   // tilted ellipse of o's with a few stars inside
+        const tilt = (Math.random() - 0.5) * 1.2, ct = Math.cos(tilt), st = Math.sin(tilt);
+        for (let k = 0; k < 44; k++) {
+          const ang = (k / 44) * Math.PI * 2;
+          const lx = Math.cos(ang) * ev.R, ly = Math.sin(ang) * ev.R * 0.36;
+          P({ vx: (lx * ct - ly * st) * 2.2, vy: (lx * st + ly * ct) * 2.2, head: 'o', tailMax: 2, tailTime: 0.12 });
+        }
+        for (let k = 0; k < 7; k++) {
+          const ang = Math.random() * Math.PI * 2, s = ev.R * 0.4 * Math.random();
+          P({ vx: Math.cos(ang) * s, vy: Math.sin(ang) * s, rgb: ev.b, tailMax: 1 });
+        }
+        break;
+      }
+      case 'willow':   // gold strands that droop with long tails
+        spray(56, ev.R, GOLD, null, { drag: 1.5, grav: 75, tailTime: 0.9, tailMax: 8 + Math.floor(Math.random() * 5), life: 2.3 + Math.random() * 0.4 });
+        break;
+      case 'palm': {   // thick curving fronds
+        const n = 6 + Math.floor(Math.random() * 3);
+        for (let f = 0; f < n; f++) {
+          const ang = -Math.PI / 2 + (f / (n - 1) - 0.5) * Math.PI * 1.7;
+          for (let j = 0; j < 6; j++) {
+            const s = ev.R * 1.6 * (0.62 + j * 0.08), jit = (Math.random() - 0.5) * 0.05;
+            P({ vx: Math.cos(ang + jit) * s, vy: Math.sin(ang + jit) * s, drag: 1.6, grav: 95, tailTime: 0.55, tailMax: 10, life: 2.0 + Math.random() * 0.4 });
+          }
+        }
+        break;
+      }
+    }
+    // faint smoke lingers and drifts with the wind
+    for (let k = 0; k < 18; k++) {
+      smoke.push({
+        x: ev.x + (Math.random() - 0.5) * ev.R * 1.2, y: ev.y + (Math.random() - 0.5) * ev.R,
+        vx: 8 + Math.random() * 10, vy: -4 - Math.random() * 4, born: t, life: 1.8 + Math.random() * 0.6,
+      });
+    }
+    // crackle: tiny white-gold pops as the big shell fades
+    if (ev.crackle && (ev.type === 'chrysanthemum' || ev.type === 'double')) {
+      crackles.push({ x: ev.x, y: ev.y + 20, R: ev.R, t0: t + 1.25, t1: t + 1.95 });
+    }
+  }
+
+  function updateRockets(t) {
+    for (const k of rockets) {
+      const e = k.ev;
+      if (t >= e.tBurst) { explode(e, t); k.done = true; continue; }
+      const u = Math.min(1, (t - e.tLaunch) / (e.tBurst - e.tLaunch));
+      const ease = 1 - (1 - u) * (1 - u);   // slows as it nears the top
+      k.x = k.x0 + (e.x - k.x0) * u + Math.sin(u * 9) * 3;
+      k.y = k.y0 + (e.y - k.y0) * ease;
+    }
+    rockets = rockets.filter(k => !k.done);
+  }
+
+  function updateCrackles(t) {
+    for (const c of crackles) {
+      if (t < c.t0 || t > c.t1) continue;
+      for (let k = 0; k < 5; k++) {
+        const ang = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * c.R * 0.85;
+        const roll = Math.random();
+        particles.push({
+          x: c.x + Math.cos(ang) * d, y: c.y + Math.sin(ang) * d * 0.9 + 30, vx: 0, vy: 0,
+          drag: 0, grav: 0, born: t, life: 0.12 + Math.random() * 0.14, hist: [], tailTime: 0, tailMax: 0,
+          head: roll < 0.5 ? '*' : roll < 0.8 ? '+' : "'", rgb: Math.random() < 0.5 ? WHITE : GOLD,
+          crackle: true, vis: true, cur: WHITE,
+        });
+      }
+    }
+    crackles = crackles.filter(c => t <= c.t1);
+  }
+
+  function updateParticles(t, dt) {
+    for (const p of particles) {
+      // fast at first, then air drag slows it and gravity pulls it down
+      const fr = Math.exp(-p.drag * dt);
+      p.vx *= fr;
+      p.vy = p.vy * fr + p.grav * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.hist.push({ x: p.x, y: p.y, t });
+      while (p.hist.length > 2 && t - p.hist[0].t > p.tailTime) p.hist.shift();
+      // white flash, deep color, then cooling embers
+      const age = t - p.born, k = age / p.life;
+      if (p.crackle) p.cur = p.rgb;
+      else if (age < 0.1) p.cur = WHITE;
+      else p.cur = scale(p.rgb, 1 - 0.68 * k);
+      p.vis = p.life - age > 0.3 || Math.random() < 0.55;   // last 0.3s: random flicker
+    }
+    particles = particles.filter(p => t - p.born < p.life);
+  }
+
+  function updateDrift(t, dt) {
+    for (const m of smoke) { m.x += m.vx * dt; m.y += m.vy * dt; }
+    smoke = smoke.filter(m => t - m.born < m.life);
+    for (const s of sparks) { s.vy += 220 * dt; s.x += s.vx * dt; s.y += s.vy * dt; }
+    sparks = sparks.filter(s => t - s.born < s.life);
+  }
+
+  function updateTower(t, dt) {
+    // construction sparks for each newly placed cell
+    for (const c of towerCells) {
+      if (c.born <= t && c.born > t - dt) {
+        for (let k = 0; k < 3; k++) spawnSpark(c.c * CELL_W + 6, c.r * CELL_H + 10, WHITE, 120, t);
+      }
+    }
+    const p = phaseAt(t);
+    if (p === 0) return;
+    const since = t - LIGHTS[p].at;
+    if (since < 0.9) {
+      // sparks fly off the climbing band
+      const level = since / 0.8 * (1 + 3 / TOWER_SPAN);
+      const y = (TOWER_BASE - level * TOWER_SPAN) * CELL_H;
+      for (let k = 0; k < 4; k++) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        spawnSpark(546 + side * (50 + Math.random() * 50), y, phaseColor(p, 20, t), 160, t);
+      }
+    } else twinkle(t);
+  }
+
+  // ---------- one frame of the picture ----------
+  function resetFrame() {
+    for (let i = 0; i < N; i++) ch[i] = baseCh[i];
+    col.set(baseCol);
+  }
+
+  function drawStars(t) {
+    for (const s of stars) {
+      const b = s.twinkle ? 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase)) : 1;
+      put(s.i, STAR_CH[s.lvl], scale(STAR_RGB[s.lvl], b));
+    }
+  }
+
+  function skyGlow(t) {
+    // each new burst tints the surrounding sky with its color for 0.3s
+    for (const f of flashes) {
+      const age = t - f.t0;
+      if (age >= 0.3) continue;
+      const reach = f.R * 1.4, k0 = (1 - age / 0.3) * 0.32;
+      const c0 = Math.max(0, Math.floor((f.x - reach) / CELL_W)), c1 = Math.min(COLS - 1, Math.floor((f.x + reach) / CELL_W));
+      const r0 = Math.max(0, Math.floor((f.y - reach) / CELL_H)), r1 = Math.min(ROWS - 1, Math.floor((f.y + reach) / CELL_H));
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+        const i = r * COLS + c;
+        if (kind[i] !== SKY) continue;
+        const d = Math.hypot(c * CELL_W + 6 - f.x, r * CELL_H + 10 - f.y);
+        if (d > reach) continue;
+        const k = k0 * (1 - d / reach);
+        if (ch[i] === ' ') { if (hash(c, r + 300) < 0.55) put(i, '.', scale(f.rgb, k)); }
+        else tint(i, f.rgb, k * 0.8);
+      }
+    }
+  }
+
+  function drawHalo(t) {
+    if (t < 3.8) return;
+    const fade = Math.min(1, (t - 3.8) / 0.5);
+    for (const h of halo) {
+      const rgb = lightWave(h.r, t).rgb;
+      put(h.i, h.d === 1 ? ':' : '.', scale(rgb, [0.36, 0.22, 0.13][h.d - 1] * fade));
+    }
+  }
+
+  function drawHill(t) {
+    // the summit catches the tower's light
+    if (t > 3.6) {
+      const rgb = lightWave(24, t).rgb;
+      const k = Math.min(1, (t - 3.6) / 0.6) * 0.42;
+      for (const i of hillLit) if (ch[i] !== ' ') tint(i, rgb, hillTint[i] * k);
+    }
+    for (const i of lamps) put(i, '.', scale([255, 205, 90], 0.8 + 0.2 * Math.sin(t * 7 + i)));
+  }
+
+  function drawCity(t) {
+    // random windows switch on and off; the city stays well over 65% lit
+    for (let k = 0; k < 4; k++) {
+      const w = windows[Math.floor(Math.random() * windows.length)];
+      if (w.lit && litCount / windows.length > 0.72) { w.lit = false; litCount--; }
+      else if (!w.lit) { w.lit = true; litCount++; }
+    }
+    for (const w of windows) {
+      if (w.lit) put(w.i, w.chr, w.rgb);
+      else if (w.dim) put(w.i, w.chr, w.dim);
+      else put(w.i, ' ', BLACK);
+    }
+    // firework light catches the building edges
+    const lights = flashes.filter(f => t - f.t0 < 0.45);
+    if (lights.length) {
+      for (const i of outlines) {
+        const x = (i % COLS) * CELL_W;
+        for (const f of lights) {
+          const k = (1 - (t - f.t0) / 0.45) * 0.55 * Math.max(0, 1 - Math.abs(x - f.x) / 650);
+          if (k > 0) tint(i, f.rgb, k);
+        }
+      }
+    }
+    // blinking red aviation lights
+    for (const L of roofLights) put(L.i, 'o', ((t + L.phase * 1.4) % 1.4) < 0.4 ? RED : [70, 12, 12]);
+    // neon signs, with the odd flicker
+    for (const s of signs) {
+      const b = hash(Math.floor(t * 8), s.seed) < 0.04 ? 0.3 : 1;
+      for (const i of s.cells) put(i, baseCh[i], scale(s.rgb, b));
+    }
+  }
+
+  function drawMast(t) {
+    for (const m of mastCells) put(m.i, m.ch, scale(m.red ? [220, 50, 45] : [205, 205, 212], 0.72 * m.shade));
+    put(cellIndex(37, 20), (t + 0.5) % 1 < 0.5 ? 'o' : ' ', RED);
+  }
+
+  function drawTower(t) {
+    for (const c of towerCells) {
+      if (t < c.born) { put(c.i, ' ', BLACK); continue; }   // not built yet
+      put(c.i, c.ch, towerCellColor(c, t, lightWave(c.r, t)));
+    }
+    // aviation light on the tip blinks once a second
+    const tip = cellIndex(45, TIP_ROW);
+    if (t > 3.8 && t % 1 < 0.5) put(tip, 'o', [255, 30, 30]);
+    else put(tip, ' ', BLACK);
+  }
+
+  function drawSmoke(t) {
+    for (const m of smoke) {
+      const i = cellAtPx(m.x, m.y);
+      if (!isOpenSky(i) || (ch[i] !== ' ' && ch[i] !== '.')) continue;
+      put(i, '·', scale([72, 72, 82], (1 - (t - m.born) / m.life) * 0.9));
+    }
+  }
+
+  function traceTail(p, visit) {
+    // walk back along the particle's recent path, one distinct cell at a time
+    let px = p.x, py = p.y, last = cellAtPx(px, py), n = 0;
+    for (let k = p.hist.length - 1; k >= 0; k--) {
+      const q = p.hist[k];
+      const steps = Math.max(1, Math.ceil(Math.hypot(q.x - px, q.y - py) / 5));
+      for (let s = 1; s <= steps; s++) {
+        const i = cellAtPx(px + (q.x - px) * s / steps, py + (q.y - py) * s / steps);
+        if (i === last) continue;
+        last = i; n++;
+        if (i >= 0) visit(i, n);
+        if (n >= p.tailMax) return;
+      }
+      px = q.x; py = q.y;
+    }
+  }
+
+  function drawFireworks() {
+    stamp++;
+    for (const p of particles) {        // bright heads first
+      if (!p.vis) continue;
+      const i = cellAtPx(p.x, p.y);
+      if (!isOpenSky(i) || mark[i] === stamp) continue;
+      mark[i] = stamp;
+      put(i, p.head, p.cur);
+    }
+    for (const p of particles) {        // then fading tails, never doubling up a cell
+      if (!p.vis || !p.tailMax) continue;
+      traceTail(p, (i, n) => {
+        if (!isOpenSky(i) || mark[i] === stamp) return;
+        mark[i] = stamp;
+        put(i, n <= 2 ? '+' : n <= 5 ? '.' : '·', scale(p.cur, Math.max(0.22, 0.9 - n * 0.075)));
+      });
+    }
+  }
+
+  function flashCore() {
+    // white disc about 40px wide for two frames at the moment of a burst
+    for (const f of flashes) {
+      if (f.frames >= 2) continue;
+      f.frames++;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -2; dx <= 2; dx++) {
+        if (Math.hypot(dx * CELL_W, dy * CELL_H) > 24) continue;
+        const i = cellAtPx(f.x + dx * CELL_W, f.y + dy * CELL_H);
+        if (!isOpenSky(i)) continue;
+        put(i, dx === 0 && dy === 0 ? '*' : 'o', WHITE);
+      }
+    }
+  }
+
+  function drawRockets() {
+    const tail = ['|', '|', '.', '.', '·'];
+    const glow = [1, 0.7, 0.5, 0.35, 0.22];
+    for (const k of rockets) {
+      for (let j = tail.length - 1; j >= 0; j--) {
+        const i = cellAtPx(k.x, k.y + j * CELL_H);
+        if (!isOpenSky(i)) continue;
+        put(i, tail[j], scale(j === 0 ? [255, 236, 200] : [255, 170, 90], glow[j]));
+      }
+    }
+  }
+
+  function drawSparks(t) {
+    for (const s of sparks) {
+      const i = cellAtPx(s.x, s.y);
+      if (!isOpenSky(i)) continue;   // sparks never cover the tower
+      const k = (t - s.born) / s.life;
+      put(i, k < 0.3 ? '*' : k < 0.65 ? '+' : '.', scale(mix(WHITE, s.rgb, Math.min(1, k * 1.5)), 1 - k * 0.55));
+    }
+  }
+
+  // ---------- rasterize the character grid ----------
+  const styleCache = new Map();
+  function rgbStyle(r, g, b) {
+    r = Math.min(255, r) & 252; g = Math.min(255, g) & 252; b = Math.min(255, b) & 252;
+    const key = (r << 16) | (g << 8) | b;
+    let s = styleCache.get(key);
+    if (!s) { s = 'rgb(' + r + ',' + g + ',' + b + ')'; styleCache.set(key, s); }
+    return s;
+  }
+
+  function renderScene() {
+    sctx.fillStyle = '#000';
+    sctx.fillRect(0, 0, W, SCENE_H);
+    sctx.font = FONT;
+    sctx.textAlign = 'center';
+    sctx.textBaseline = 'middle';
+    let letters = 0, last = '';
+    for (let i = 0; i < N; i++) {
+      const chr = ch[i];
+      if (chr === ' ') continue;
+      const r = col[i * 3], g = col[i * 3 + 1], b = col[i * 3 + 2];
+      if (r + g + b < 12) continue;
+      const st = rgbStyle(r, g, b);
+      if (st !== last) { sctx.fillStyle = st; last = st; }
+      const c = i % COLS, row = (i / COLS) | 0;
+      sctx.fillText(chr, c * CELL_W + (wide[i] ? CELL_W : CELL_W / 2), row * CELL_H + 11);
+      letters++;
+    }
+    return letters;
+  }
+
+  function composite() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, EDITOR_TOP);
+    ctx.drawImage(scene, 0, 0);
+    // soft bloom: a blurred copy added on top at 40%
+    ctx.save();
+    ctx.filter = 'blur(3px)';
+    ctx.globalAlpha = 0.4;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(scene, 0, 0);
+    ctx.restore();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, SCENE_H, W, EDITOR_TOP - SCENE_H);
+  }
+
+  // ---------- main loop ----------
+  function resetCycle(n) {
+    particles = []; rockets = []; flashes = []; smoke = []; sparks = []; crackles = [];
+    schedule = scheduleFireworks(makeRandom(7000 + n * 97));
+    nextEvent = 0; burstCount = 0;
+    for (const c of towerCells) c.flash = 0;
+  }
+
+  function update(t, dt) {
+    while (nextEvent < schedule.length && schedule[nextEvent].tLaunch <= t) launchRocket(schedule[nextEvent++]);
+    updateRockets(t);
+    updateCrackles(t);
+    updateParticles(t, dt);
+    updateDrift(t, dt);
+    updateTower(t, dt);
+    flashes = flashes.filter(f => t - f.t0 < 0.5);
+  }
+
+  function paint(t) {
+    // back to front: sky, mountain, city, structures, then effects in front
+    resetFrame();
+    drawStars(t);
+    skyGlow(t);
+    drawHalo(t);
+    drawHill(t);
+    drawCity(t);
+    drawMast(t);
+    drawTower(t);
+    drawSmoke(t);
+    drawFireworks();
+    flashCore();
+    drawRockets();
+    drawSparks(t);
+  }
+
+  // build the static world once
+  paintSky();
+  paintFarRidge();
+  paintHill();
+  buildTower();
+  buildMast();
+  buildCity();
+  buildHalo();
+  placeStars();
+  for (let i = 0; i < N; i++) if (kind[i] === HILL && hillTint[i] > 0) hillLit.push(i);
+  lamps = lamps.filter(i => kind[i] === HILL);
+
+  
+let cycle = -1, lastTick = 0, startTime = 0, raf = 0;
+function frame(now) {
+  raf = requestAnimationFrame(frame);
+  if (lastTick && now - lastTick < 1000 / FPS - 3) return;
+  const dt = lastTick ? Math.min(0.1, (now - lastTick) / 1000) : 1 / FPS;
+  lastTick = now;
+  const total = (now - startTime) / 1000;
+  const loop = Math.floor(total / LOOP), t = total - loop * LOOP;
+  if (loop !== cycle) { cycle = loop; resetCycle(loop); }
+  update(t, dt);
+  paint(t);
+  renderScene();
+  composite();
+}
+return {
+  start() {
+    if (still) {
+      resetCycle(0);
+      for (let tt = 0; tt <= 22; tt += 1 / 30) update(tt, 1 / 30);
+      paint(22); renderScene(); composite(); return;
+    }
+    startTime = performance.now(); cycle = -1; lastTick = 0;
+    raf = requestAnimationFrame(frame);
+  },
+  stop() { cancelAnimationFrame(raf); }
+};
+}
+
+const sceneBox = document.getElementById('scene-box'), canvas = document.getElementById('scene');
+canvas.width = 1080; canvas.height = 1290;
+const ctrls = {}, makers = { busan: createBusan, seoul: createSeoul };
+let kind = 'busan', current = null;
+function show(k) {
+    current && current.stop();
+    current = ctrls[k] || (ctrls[k] = makers[k](canvas, reduced));
+    current.start();
+}
+function fit() {
+    const w = sceneBox.clientWidth, h = sceneBox.clientHeight, s = Math.min(w/1080, h/1290);
+    canvas.style.width = 1080*s + 'px'; canvas.style.height = 1290*s + 'px';
+    canvas.style.left = (w - 1080*s)/2 + 'px'; canvas.style.top = (h - 1290*s) + 'px';
+}
+new ResizeObserver(fit).observe(sceneBox); fit();
+canvas.style.transition = 'opacity .35s ease';
+show(kind);
+
+const placeBtn = document.getElementById('place'), placeLabel = document.getElementById('place-label');
+let swapping = false;
+placeBtn.addEventListener('click', () => {
+    if (swapping) return;
+    swapping = true;
+    canvas.style.opacity = 0;
+    setTimeout(() => {
+        kind = kind === 'busan' ? 'seoul' : 'busan';
+        placeLabel.textContent = kind === 'busan' ? '서울' : '부산';
+        placeBtn.setAttribute('aria-label', kind === 'busan' ? '서울 풍경으로 바꾸기' : '부산 풍경으로 바꾸기');
+        show(kind);
+        canvas.style.opacity = 1; swapping = false;
+    }, 350);
+});
+placeBtn.setAttribute('aria-label', '서울 풍경으로 바꾸기');
+
+/* ═════════ 워드마크 글자 등장 ═════════ */
+const mark = document.getElementById('mark-text'), word = mark.textContent.trim();
+mark.innerHTML = '';
+[...word].forEach((c, i) => {
+    const w = document.createElement('span'); w.className = 'letter';
+    const s = document.createElement('span'); s.className = 'letter-in'; s.textContent = c; s.style.animationDelay = `${i*0.09}s`;
+    w.appendChild(s); mark.appendChild(w);
+});
+
+/* ═════════ 커서 ═════════ */
+const dialog = document.getElementById('login');
+if (fine) {
+    document.documentElement.classList.add('has-cursor');
+    const ring = document.getElementById('cur-ring'), card = document.getElementById('cur-card');
+    let mx = innerWidth/2, my = innerHeight/2, cx = mx, cy = my, first = true, scale = 0, target = 0, hovering = false;
+    const blocked = () => hovering || dialog.open;
+    document.addEventListener('mousemove', e => {
+        mx = e.clientX; my = e.clientY;
+        if (first) { cx = mx; cy = my; first = false; ring.classList.add('is-on'); card.classList.add('is-on'); }
+        if (!blocked()) target = 1;
+    });
+    document.documentElement.addEventListener('mouseleave', () => { target = 0; });
+    document.documentElement.addEventListener('mouseenter', () => { if (!blocked()) target = 1; });
+    document.querySelectorAll('.hero-btn, .ft-place, .ft-link').forEach(el => {
+        el.addEventListener('mouseenter', () => { hovering = true; target = 0; ring.classList.add('is-wide'); });
+        el.addEventListener('mouseleave', () => { hovering = false; if (!dialog.open) target = 1; ring.classList.remove('is-wide'); });
+    });
+    dialog.addEventListener('close', () => { hovering = false; target = 1; ring.classList.remove('is-wide'); });
+    const tick = () => {
+        cx += (mx - cx)*.08; cy += (my - cy)*.08;
+        if (dialog.open) target = 0;
+        scale += (target - scale)*.15;
+        const wide = ring.classList.contains('is-wide');
+        card.style.transform = `translate3d(${cx}px, ${cy}px, 0) translate(-50%, -50%) scale(${scale})`;
+        ring.style.transform = `translate3d(${mx}px, ${my}px, 0) translate(-50%, -50%) scale(${wide ? 1.6*Math.max(scale, 1 - scale) * (dialog.open ? 0 : 1) : scale})`;
+        requestAnimationFrame(tick);
+    };
+    tick();
+}
+
+/* ═════════ 로그인 ═════════ */
+const form = document.getElementById('login-form');
+const userEl = document.getElementById('username'), pwEl = document.getElementById('password');
+const btn = document.getElementById('submit'), errEl = document.getElementById('error');
+const sync = () => { btn.disabled = !(userEl.value.trim() && pwEl.value); };
+userEl.addEventListener('input', sync); pwEl.addEventListener('input', sync);
+document.getElementById('open-login').addEventListener('click', () => { dialog.showModal(); userEl.focus(); });
+document.getElementById('close-login').addEventListener('click', () => dialog.close());
+dialog.addEventListener('click', e => { if (e.target === dialog) dialog.close(); });
+
+form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (btn.disabled) return;
+    btn.disabled = true; errEl.textContent = '';
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: userEl.value.trim(), password: pwEl.value }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw Object.assign(new Error(body.message || body.detail || ''), { status: res.status });
+        const data = body.content ?? body;
+        localStorage.setItem('rma.token', JSON.stringify(data.token));
+        localStorage.setItem('rma.user', JSON.stringify(data.user));
+        location.href = data.user?.role === 'CS' ? '/cs/dashboard' : '/quality/dashboard';
+    } catch (err) {
+        errEl.textContent = (!err.status || err.status >= 500) ? '잠시 후 다시 시도하세요' : (err.message || '아이디 또는 비밀번호를 확인하세요');
+        sync();
+    }
+});
+})();
+</script>
+</body>
+</html>

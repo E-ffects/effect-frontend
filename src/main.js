@@ -1,9 +1,16 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
-import { clearPageError, reportUnhandledError } from './lib/state'
+import { MOCK } from './lib/api'
+import { auth, clearPageError, reportUnhandledError, setSession } from './lib/state'
 import { vSlidePill } from './lib/slidePill'
 import './style.css'
+
+// 목업 모드(npm run dev:mock)에서는 로그인 없이 바로 화면을 연다. 주소 뒤에 ?as=cs 를 붙이면 고객대응관리자
+if (MOCK && !auth.token) {
+  const cs = new URLSearchParams(location.search).get('as') === 'cs'
+  setSession('mock-token', { name: cs ? '고객대응 담당' : '품질 담당', role: cs ? 'CS' : 'QUALITY', role_label: cs ? '고객대응관리자' : '품질관리자' })
+}
 
 const app = createApp(App)
 app.directive('slide-pill', vSlidePill)

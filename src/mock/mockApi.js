@@ -12,9 +12,10 @@ const STEPS = ['ORCHESTRATOR', 'QA', 'MANUFACTURING', 'CAUSE_ANALYSIS', 'QA', 'M
 const RUN_MS = 7000
 
 export class MockError extends Error {
-  constructor(status, message) {
+  constructor(status, message, code) {
     super(message)
     this.status = status
+    this.code = code
   }
 }
 
@@ -179,6 +180,8 @@ function detailView(id) {
     follow_up_questions: c.follow_up_questions,
     intake_state: c.intake_state,
     analysis_state: analysisView(id).analysis_state,
+    // 원인 승인·확인 뒤에만 2차 회신 초안을 만들 수 있다 (Spring이 추가하는 필드)
+    follow_up_draft_available: ['APPROVED', 'CONFIRMED'].includes(approvalOf(id)),
   }
   if (c.intake_state === 'FAILED') out.error = c.error || { code: 'AI_UNAVAILABLE', detail: 'AI 서버에 연결하지 못했습니다' }
   if (!cs) {
@@ -461,6 +464,19 @@ function communicate(id, body) {
   return { rma_id: id, message_id: m.message_id, cs_status: c.cs_status, sent_at: m.sent_at }
 }
 
+// 2차 회신 초안: 본문 없이 호출, 문안만 돌려준다 (발송·기록은 화면의 기존 절차)
+function followUpDraft(id) {
+  need('CS')
+  claimOf(id)
+  if (!['APPROVED', 'CONFIRMED'].includes(approvalOf(id))) throw new MockError(409, '원인 승인·확인 후에 2차 회신 초안을 만들 수 있습니다.', 'FOLLOW_UP_DRAFT_NOT_READY')
+  return {
+    rma_id: id,
+    analysis_id: analysisView(id).analysis_id,
+    source: 'AI_DRAFT',
+    message_text: '분석이 완료되어 원인을 확인했습니다. 시료 분석 결과와 처리 계획을 안내드립니다. 상세 내용은 대책서로 회신드립니다.',
+  }
+}
+
 function serviceAction(id, body) {
   need('CS')
   const c = claimOf(id)
@@ -475,7 +491,91 @@ function serviceAction(id, body) {
   return { rma_id: id, ...act, cs_status: c.cs_status }
 }
 
+// 재발 관리 (목업): 대책 2건 시드. 쓰기는 품질관리자만
+function recurDb() {
+  db.recur ||= {
+    seq: 3,
+    decisions: {},
+    actions: [
+      { corrective_action_id: 'CA-0001', investigation_id: 'INV-0001', investigation_title: '오픈(단선) 반복 접수 조사', action_role: 'OCCURRENCE', action_category: 'PROCESS_EQUIPMENT', description: '도금 라인 전류 밀도 점검 및 설비 개선', owner_dept: '제조기술팀', cause_code: 'PLATING_VOID', escape_code: null, selected_at: '2025-11-03T09:00:00+09:00', due_at: '2025-11-30T00:00:00+09:00', implemented_at: '2025-11-28T00:00:00+09:00', verification_status: 'MONITORING', recurrence_count: 1, scope: null },
+      { corrective_action_id: 'CA-0002', investigation_id: 'INV-0001', investigation_title: '오픈(단선) 반복 접수 조사', action_role: 'ESCAPE', action_category: 'INSPECTION', description: 'ICT 검사 항목에 단선 전수 확인 추가', owner_dept: '품질보증팀', cause_code: 'PLATING_VOID', escape_code: 'ESC_ICT', selected_at: '2025-11-03T09:00:00+09:00', due_at: '2026-01-15T00:00:00+09:00', implemented_at: null, verification_status: 'IMPLEMENTING', recurrence_count: 0, scope: null },
+    ],
+    reviews: [
+      { review_id: 'RV-0001', corrective_action_id: 'CA-0001', rma_id: 'RMA-08927', rma_item_id: 'ITEM-08927', lot_produced_after_action: true, symptom_match: true, cause_match: true, verdict: 'RECURRENCE', reviewed_at: '2025-12-20T10:00:00+09:00' },
+    ],
+  }
+  return db.recur
+}
+const cp = (x) => JSON.parse(JSON.stringify(x)) // 서버처럼 복사본을 돌려줘야 화면이 변경을 알아챈다
+function recurAction(id) {
+  const a = recurDb().actions.find((x) => x.corrective_action_id === id)
+  if (!a) throw new MockError(404, '대책을 찾을 수 없습니다.')
+  return a
+}
+function recurTrend(id) {
+  const a = recurAction(id)
+  const counts = [3, 4, 3, 4, 2, 1, 1, 2]
+  const points = counts.map((count, i) => ({ from: '2025-11-03', to: '2025-11-09', label: `W${i + 1}`, count, after: !!a.implemented_at && i >= 4, recurrence: !!a.implemented_at && i === 7 }))
+  const avg = (l) => (l.length ? l.reduce((s, x) => s + x, 0) / l.length : null)
+  return {
+    corrective_action_id: id, investigation_id: a.investigation_id, implemented_at: a.implemented_at, completed_dt: a.implemented_at ? a.implemented_at.slice(0, 10) : null,
+    points, before_avg: avg(counts.slice(0, 4)), after_avg: a.implemented_at ? avg(counts.slice(4)) : null, recent_trend: '유지', checks: [],
+  }
+}
+function recurSave(a, body) {
+  if (!body.description?.trim() || !body.owner_dept?.trim() || !body.due_at || !body.action_role || !body.action_category) throw new MockError(400, '입력값을 확인해 주세요.')
+  Object.assign(a, { action_role: body.action_role, action_category: body.action_category, description: body.description.trim(), owner_dept: body.owner_dept.trim(), cause_code: body.cause_code || null, escape_code: body.escape_code || null, due_at: body.due_at, scope: body.scope ?? null })
+}
+function recurCreate(invId, body) {
+  need('QUALITY')
+  const d = recurDb()
+  const title = d.actions.find((x) => x.investigation_id === invId)?.investigation_title || invId
+  const a = { corrective_action_id: `CA-${String(d.seq++).padStart(4, '0')}`, investigation_id: invId, investigation_title: title, selected_at: stamp(), implemented_at: null, verification_status: 'IMPLEMENTING', recurrence_count: 0 }
+  recurSave(a, body)
+  d.actions.push(a)
+  save()
+  return a
+}
+function recurUpdate(id, body) {
+  need('QUALITY')
+  const a = recurAction(id)
+  if (a.implemented_at) throw new MockError(409, '시행한 대책은 계획을 바꿀 수 없습니다.')
+  recurSave(a, body)
+  save()
+  return a
+}
+function recurImplement(id, body) {
+  need('QUALITY')
+  const a = recurAction(id)
+  if (a.implemented_at) throw new MockError(409, '이미 시행일을 기록한 대책입니다.')
+  if (!body.implemented_at) throw new MockError(400, '시행일을 입력해 주세요.')
+  a.implemented_at = body.implemented_at
+  a.verification_status = 'MONITORING'
+  save()
+  return a
+}
+function recurDecide(id, body) {
+  need('QUALITY')
+  claimOf(id)
+  if (!['APPROVED', 'CONFIRMED'].includes(approvalOf(id))) throw new MockError(409, '원인 승인·확인 뒤에 재발 여부를 확정할 수 있습니다.')
+  const d = recurDb()
+  if (d.decisions[id]) throw new MockError(409, '이미 재발 여부를 확정한 건입니다.')
+  if (!['RECURRENCE', 'SPREAD_RECURRENCE', 'NEW'].includes(body.decision)) throw new MockError(400, '입력값을 확인해 주세요.')
+  const user = JSON.parse(localStorage.getItem('rma.user') || '{}')
+  d.decisions[id] = { rma_id: id, decision: body.decision, decided_by: user.name || '품질관리자', decided_at: stamp() }
+  save()
+  return d.decisions[id]
+}
+
 const routes = [
+  ['GET', /^\/recurrence\/actions$/, () => { const items = cp(recurDb().actions); return { items, total: items.length, page: 1, size: 100 } }],
+  ['GET', /^\/recurrence\/actions\/([^/]+)\/trend$/, (m) => recurTrend(m[1])],
+  ['GET', /^\/recurrence\/actions\/([^/]+)$/, (m) => cp(recurAction(m[1]))],
+  ['PUT', /^\/recurrence\/actions\/([^/]+)$/, (m, b) => cp(recurUpdate(m[1], b))],
+  ['POST', /^\/recurrence\/actions\/([^/]+)\/implement$/, (m, b) => cp(recurImplement(m[1], b))],
+  ['POST', /^\/recurrence\/investigations\/([^/]+)\/actions$/, (m, b) => cp(recurCreate(decodeURIComponent(m[1]), b))],
+  ['GET', /^\/recurrence\/reviews$/, (_, __, q) => { const items = cp(recurDb().reviews.filter((r) => !q?.corrective_action_id || r.corrective_action_id === q.corrective_action_id)); return { items, total: items.length, page: 1, size: 50 } }],
+  ['POST', /^\/rmas\/([^/]+)\/recurrence$/, (m, b) => cp(recurDecide(m[1], b))],
   ['POST', /^\/auth\/login$/, (_, b) => {
     const cs = /cs|고객/i.test(b.username || '')
     return { token: 'mock-token', user: { name: cs ? '고객대응 담당' : '품질 담당', role: cs ? 'CS' : 'QUALITY', role_label: cs ? '고객대응관리자' : '품질관리자' } }
@@ -523,6 +623,7 @@ const routes = [
   ['GET', /^\/rmas\/([^/]+)\/cause-decision$/, (m) => db.decisions[m[1]] || null],
   ['GET', /^\/rmas\/([^/]+)\/communications$/, (m) => ({ items: db.comms[m[1]] || [] })],
   ['POST', /^\/rmas\/([^/]+)\/communications$/, (m, b) => communicate(m[1], b)],
+  ['POST', /^\/rmas\/([^/]+)\/communications\/follow-up-draft$/, (m) => followUpDraft(m[1])],
   ['GET', /^\/rmas\/([^/]+)\/service-action$/, (m) => ({ items: db.actions[m[1]] || [] })],
   ['POST', /^\/rmas\/([^/]+)\/service-action$/, (m, b) => serviceAction(m[1], b)],
   ['GET', /^\/rmas\/([^/]+)\/attachments$/, (m) => ({ items: claimOf(m[1]).attachments })],

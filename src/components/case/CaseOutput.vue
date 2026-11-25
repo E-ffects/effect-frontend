@@ -36,7 +36,7 @@ const sharedText = (it) => {
 
 const rec = computed(() => r.value.recurrence_check)
 const improvement = computed(() => r.value.drafts?.improvement || {})
-const card = 'rounded-[14px] border bg-card p-5'
+const card = 'rounded-[14px] border bg-card shadow-card p-5'
 
 // 분석 결과는 탭으로 나눈다 (원인 판정 카드는 CaseView에서 탭 위에 고정)
 const TABS = computed(() => [

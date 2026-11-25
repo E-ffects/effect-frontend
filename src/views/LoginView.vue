@@ -34,7 +34,7 @@ async function submit() {
 </script>
 
 <template>
-  <AuthLayout>
+  <AuthLayout robot>
       <p class="mb-2 text-[12px] font-semibold tracking-[1.2px] text-muted-foreground">WELCOME BACK</p>
       <h2 class="text-[27px] font-bold tracking-[-1px]">워크스페이스 로그인</h2>
       <p class="mt-1 mb-7 text-sm text-muted-foreground">PCB 반품과 고객불만 데이터를 한눈에 확인하세요.</p>

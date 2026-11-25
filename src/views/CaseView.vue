@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { AlertTriangle, RefreshCw } from 'lucide-vue-next'
+import { AlertTriangle, Lock, RefreshCw } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import SubmitButton from '@/components/ui/SubmitButton.vue'
@@ -34,6 +34,10 @@ let timer = null
 const running = computed(() => ['QUEUED', 'RUNNING'].includes(analysis.value?.analysis_state))
 const finished = computed(() => ['SUCCEEDED', 'PARTIAL'].includes(analysis.value?.analysis_state))
 const followUpOpen = computed(() => finished.value && rma.value?.follow_up_draft_available === true) // 2차 회신 카드가 열린 상태
+// 회신 탭: 2차가 열려 있으면 2차부터 보여 주고, 열리는 순간 2차로 넘어간다. 사용자가 고른 뒤에는 그대로 둔다
+const REPLY_TABS = [{ k: 'first', l: '1차 회신' }, { k: 'second', l: '2차 회신' }]
+const replyTab = ref('first')
+watch(followUpOpen, (open) => (replyTab.value = open ? 'second' : 'first'), { immediate: true })
 
 async function loadDetail() {
   const d = await api(`/rmas/${rmaId.value}`)
@@ -223,12 +227,23 @@ const csResult = computed(() => analysis.value?.result)
                 <dt class="text-muted-foreground">분석 수준</dt><dd><Badge :tone="LEVEL_TONE[csResult?.qa_review?.analysis_level]">{{ csResult?.qa_review?.analysis_level }}</Badge> <span v-if="csResult?.qa_review?.needs_approval" class="text-xs text-muted-foreground">품질관리자 승인 후 원인 확정</span></dd>
               </dl>
             </section>
-            <CsReply :rma="rma" :analysis="analysis" @changed="refresh" />
-            <!-- 회신을 기록하면 바로 아래에서 보낸 내용을 확인한다 (1차·2차 공통). 2차가 열리면 2차 아래로 옮긴다 -->
-            <CsHistory v-if="!followUpOpen" :items="comms" />
-            <!-- 원인 확정 뒤에 열리는 2차 회신 + 처리방안 -->
-            <CsFollowUp v-if="finished" :rma="rma" :analysis="analysis" @changed="refresh" />
-            <CsHistory v-if="followUpOpen" :items="comms" />
+            <!-- 회신: 1차·2차를 탭 하나로 묶는다. 2차(원인 확정 뒤 회신 + 처리방안)가 열리면 2차 탭이 먼저 보인다 -->
+            <div v-if="finished" class="flex items-center gap-3">
+              <h3 class="text-[15px] font-bold">회신</h3>
+              <div v-slide-pill="'seg-pill'" class="seg w-fit" role="tablist" aria-label="회신 차수">
+                <button
+                  v-for="t in REPLY_TABS" :key="t.k" role="tab" :aria-selected="replyTab === t.k"
+                  class="seg-item inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-semibold"
+                  @click="replyTab = t.k"
+                >
+                  {{ t.l }}<Lock v-if="t.k === 'second' && !followUpOpen" class="size-3 text-muted-foreground" aria-label="원인 확정 전" />
+                </button>
+              </div>
+            </div>
+            <CsReply v-show="!finished || replyTab === 'first'" :rma="rma" :analysis="analysis" @changed="refresh" />
+            <CsFollowUp v-if="finished" v-show="replyTab === 'second'" :rma="rma" :analysis="analysis" @changed="refresh" />
+            <!-- 보낸 회신은 탭과 상관없이 아래에서 확인한다 (1차·2차 공통) -->
+            <CsHistory :items="comms" />
             <CsSimilar v-if="finished" :rma-id="rma.rma_id" />
           </div>
           <p v-else class="rounded-[14px] border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">분석이 끝나면 1차 회신 초안이 여기에 나오고, 원인이 확정되면 2차 회신과 처리방안이 열립니다.</p>

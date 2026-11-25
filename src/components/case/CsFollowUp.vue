@@ -4,6 +4,7 @@ import { Copy, FileText, Lock, PackageCheck, Send } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Select from '@/components/ui/Select.vue'
+import SubmitButton from '@/components/ui/SubmitButton.vue'
 import { api } from '@/lib/api'
 import { toast } from '@/lib/state'
 import { ACTION_TYPE } from '@/lib/caseLabels'
@@ -42,9 +43,8 @@ async function makeDraft() {
   }
 }
 
-const sending = ref(false)
+// 성공하면 true: 버튼이 완료 표시로 바뀐다 (SubmitButton)
 async function record() {
-  sending.value = true
   try {
     // 수정한 문안과 함께 초안 응답의 analysis_id·source 를 그대로 보낸다 (초안 없이 직접 쓴 문안은 MANUAL)
     await api(`/rmas/${rmaId.value}/communications`, {
@@ -55,10 +55,10 @@ async function record() {
     text.value = ''
     draft.value = null
     emit('changed') // 상세와 회신 이력을 다시 불러온다
+    return true
   } catch (e) {
     toast({ title: e.message, tone: 'red' })
-  } finally {
-    sending.value = false
+    return false
   }
 }
 async function copy() {
@@ -84,17 +84,20 @@ watch(action, (a) => {
   else if (Number(qty.value) === 0) qty.value = props.rma.items?.[0]?.claimed_defect_qty ?? ''
 })
 const qtyOk = computed(() => Number(qty.value) >= (action.value === 'NO_CHARGE_SAMPLE_RETURN' ? 0 : 1))
-const acting = ref(false)
+const acting = ref('') // 진행 중인 결과 (SCHEDULED · EXECUTED)
+// 성공하면 true: 처리 실행 버튼이 완료 표시로 바뀐다 (SubmitButton)
 async function execute(result) {
-  acting.value = true
+  acting.value = result
   try {
     await api(`/rmas/${rmaId.value}/service-action`, { method: 'POST', body: { action_type: action.value, board_qty: Number(qty.value), result, source: action.value === suggestion.value?.action_type ? 'AI_SUGGESTED' : 'MANUAL' } })
     toast({ title: result === 'EXECUTED' ? '처리를 실행했습니다. 접수가 종료됩니다' : '처리를 예약했습니다', tone: 'green' })
     emit('changed')
+    return true
   } catch (e) {
     toast({ title: e.message, tone: 'red' })
+    return false
   } finally {
-    acting.value = false
+    acting.value = ''
   }
 }
 const actionOptions = Object.entries(ACTION_TYPE).map(([value, label]) => ({ value, label }))
@@ -125,7 +128,7 @@ const actionOptions = Object.entries(ACTION_TYPE).map(([value, label]) => ({ val
       <div class="mt-2 flex flex-wrap items-center gap-2">
         <span class="text-xs text-muted-foreground">{{ draft ? (edited ? '수정됨' : '초안 그대로') : '초안 없이 직접 쓸 수도 있습니다' }} · 메일은 복사해서 보내고, 보낸 사실을 기록합니다</span>
         <Button size="sm" variant="outline" class="ml-auto" :disabled="!text.trim()" @click="copy"><Copy class="size-3.5" />복사</Button>
-        <Button size="sm" :loading="sending" :disabled="closed || text.trim().length < 10" @click="record"><Send class="size-3.5" />회신 기록</Button>
+        <SubmitButton size="sm" :action="record" success-label="기록 완료" :disabled="closed || text.trim().length < 10"><Send class="size-3.5" />회신 기록</SubmitButton>
       </div>
     </section>
 
@@ -158,8 +161,8 @@ const actionOptions = Object.entries(ACTION_TYPE).map(([value, label]) => ({ val
       </div>
       <p v-if="level === 'L3' && !closed" class="mt-2 text-xs text-muted-foreground">L3 건은 품질관리자의 원인 판정이 끝나야 처리를 실행할 수 있습니다.</p>
       <div class="mt-3 flex justify-end gap-2">
-        <Button size="sm" variant="outline" :loading="acting" :disabled="closed || !action || !qtyOk" @click="execute('SCHEDULED')">예약</Button>
-        <Button size="sm" :loading="acting" :disabled="closed || !action || !qtyOk" @click="execute('EXECUTED')"><PackageCheck class="size-3.5" />처리 실행</Button>
+        <Button size="sm" variant="outline" :loading="acting === 'SCHEDULED'" :disabled="closed || !action || !qtyOk || !!acting" @click="execute('SCHEDULED')">예약</Button>
+        <SubmitButton size="sm" :action="() => execute('EXECUTED')" success-label="실행 완료" :disabled="closed || !action || !qtyOk || acting === 'SCHEDULED'"><PackageCheck class="size-3.5" />처리 실행</SubmitButton>
       </div>
     </section>
   </div>

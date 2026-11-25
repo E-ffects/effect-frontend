@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { Copy, Send } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
+import SubmitButton from '@/components/ui/SubmitButton.vue'
 import { api } from '@/lib/api'
 import { toast } from '@/lib/state'
 import { CS_STATUS, pick } from '@/lib/caseLabels'
@@ -22,17 +23,16 @@ watch(() => [drafts.value.customer_reply, props.rma.follow_up_questions], () => 
   text.value = needsInfo.value ? (props.rma.follow_up_questions || []).join('\n') : drafts.value.customer_reply || ''
 }, { immediate: true })
 
-const sending = ref(false)
+// 성공하면 true: 버튼이 완료 표시로 바뀐다 (SubmitButton)
 async function record() {
-  sending.value = true
   try {
     await api(`/rmas/${props.rma.rma_id}/communications`, { method: 'POST', body: { message_text: text.value.trim(), source: source.value, analysis_id: props.analysis?.analysis_id || null } })
     toast({ title: '회신을 기록했습니다', tone: 'green' })
     emit('changed')
+    return true
   } catch (e) {
     toast({ title: e.message, tone: 'red' })
-  } finally {
-    sending.value = false
+    return false
   }
 }
 async function copy() {
@@ -57,7 +57,7 @@ const closed = computed(() => props.rma.cs_status === 'CLOSED')
     <div class="mt-2 flex flex-wrap items-center gap-2">
       <span class="text-xs text-muted-foreground">{{ source === 'AI_DRAFT' ? 'AI 초안 그대로' : '수정됨' }} · 메일은 복사해서 보내고, 보낸 사실을 기록합니다</span>
       <Button size="sm" variant="outline" class="ml-auto" :disabled="!text.trim()" @click="copy"><Copy class="size-3.5" />복사</Button>
-      <Button size="sm" :loading="sending" :disabled="closed || text.trim().length < 10" @click="record"><Send class="size-3.5" />회신 기록</Button>
+      <SubmitButton size="sm" :action="record" success-label="기록 완료" :disabled="closed || text.trim().length < 10"><Send class="size-3.5" />회신 기록</SubmitButton>
     </div>
   </section>
 </template>

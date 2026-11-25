@@ -33,6 +33,7 @@ let timer = null
 
 const running = computed(() => ['QUEUED', 'RUNNING'].includes(analysis.value?.analysis_state))
 const finished = computed(() => ['SUCCEEDED', 'PARTIAL'].includes(analysis.value?.analysis_state))
+const followUpOpen = computed(() => finished.value && rma.value?.follow_up_draft_available === true) // 2차 회신 카드가 열린 상태
 
 async function loadDetail() {
   const d = await api(`/rmas/${rmaId.value}`)
@@ -223,10 +224,11 @@ const csResult = computed(() => analysis.value?.result)
               </dl>
             </section>
             <CsReply :rma="rma" :analysis="analysis" @changed="refresh" />
-            <!-- 회신을 기록하면 바로 아래에서 보낸 내용을 확인한다 (1차·2차 공통) -->
-            <CsHistory :items="comms" />
+            <!-- 회신을 기록하면 바로 아래에서 보낸 내용을 확인한다 (1차·2차 공통). 2차가 열리면 2차 아래로 옮긴다 -->
+            <CsHistory v-if="!followUpOpen" :items="comms" />
             <!-- 원인 확정 뒤에 열리는 2차 회신 + 처리방안 -->
             <CsFollowUp v-if="finished" :rma="rma" :analysis="analysis" @changed="refresh" />
+            <CsHistory v-if="followUpOpen" :items="comms" />
             <CsSimilar v-if="finished" :rma-id="rma.rma_id" />
           </div>
           <p v-else class="rounded-[14px] border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">분석이 끝나면 1차 회신 초안이 여기에 나오고, 원인이 확정되면 2차 회신과 처리방안이 열립니다.</p>

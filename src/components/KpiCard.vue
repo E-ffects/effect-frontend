@@ -37,7 +37,7 @@ const toneCls = {
   <component
     :is="clickable ? 'button' : 'div'"
     :tabindex="!clickable && formula ? 0 : undefined"
-    class="group flex min-h-[112px] flex-col rounded-xl border px-4 pb-3.5 pt-4 text-left transition"
+    class="group flex min-h-[112px] flex-col rounded-xl border px-4 pb-3.5 pt-4 text-left shadow-card transition hover:shadow-card-hover"
     :class="[
       performance ? 'border-perf-line bg-perf' : 'bg-card',
       clickable ? 'hover:border-[#cfd3da] hover:bg-[#fcfcfd]' : '',

@@ -5,7 +5,7 @@
 /* E!ffect 브랜드 톤 (RMA_SK_Interactive_v4 기준) */
 @theme {
   --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --color-background: #f7f8fa;
+  --color-background: #fafafa;
   --color-card: #ffffff;
   --color-border: #eaecf0;
   --color-input: #dfe2e7;
@@ -30,6 +30,10 @@
   --color-accent: #f3f4f6;
   --color-destructive: #dc2626;
 
+  /* 카드 입체감: 가까운 그림자(윤곽) + 먼 그림자(떠 있는 느낌), 푸른 배경에 맞춰 약한 파랑 기운 */
+  --shadow-card: 0 1px 2px rgb(16 42 90 / 0.06), 0 4px 10px -2px rgb(16 42 90 / 0.08), 0 14px 28px -10px rgb(30 80 150 / 0.18);
+  --shadow-card-hover: 0 2px 4px rgb(16 42 90 / 0.07), 0 8px 16px -4px rgb(16 42 90 / 0.1), 0 20px 36px -12px rgb(30 80 150 / 0.24);
+
   /* 가독성: 작은 글자 단계를 한 단계씩 키우고 줄 간격을 넉넉하게 */
   --text-xs: 0.8125rem; /* 13px (기본 12px) */
   --text-xs--line-height: 1.55;
@@ -46,7 +50,14 @@
     border-color: var(--color-border);
   }
   body {
-    background: var(--color-background);
+    /* 왼쪽 위는 가장 밝게(제목 글자가 읽히도록), 오른쪽·아래로 갈수록 파란 기운이 번진다 */
+    background-color: #fafafa;
+    background-image:
+      radial-gradient(900px 560px at 100% 0%, rgb(66 165 245 / 0.24), transparent 70%),
+      radial-gradient(1000px 640px at 88% 100%, rgb(100 181 246 / 0.3), transparent 68%),
+      radial-gradient(900px 620px at 0% 100%, rgb(144 202 249 / 0.28), transparent 70%),
+      linear-gradient(150deg, #e3f2fd 0%, #d3e9fc 38%, #e6f2fc 62%, #fafafa 100%);
+    background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;

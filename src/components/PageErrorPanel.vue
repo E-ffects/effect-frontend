@@ -9,7 +9,7 @@ const offline = computed(() => [0, 502, 504].includes(pageError.status))
 </script>
 
 <template>
-  <div class="flex min-h-[60vh] flex-col items-center justify-center gap-3 rounded-xl border bg-card p-10 text-center" role="alert">
+  <div class="flex min-h-[60vh] flex-col items-center justify-center gap-3 rounded-xl border bg-card shadow-card p-10 text-center" role="alert">
     <span class="flex size-14 items-center justify-center rounded-full bg-sk-red/10 text-sk-red">
       <component :is="offline ? WifiOff : ServerCrash" class="size-6" />
     </span>

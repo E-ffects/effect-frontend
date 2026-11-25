@@ -3,7 +3,7 @@ defineProps({ title: String, description: String, padded: { type: Boolean, defau
 </script>
 
 <template>
-  <section class="rounded-[14px] border bg-card flex flex-col">
+  <section class="rounded-[14px] border bg-card shadow-card flex flex-col">
     <header v-if="title || $slots.actions" class="flex items-start justify-between gap-3 px-5 pt-5">
       <div>
         <h3 class="text-[16px] font-bold leading-none tracking-tight">{{ title }}</h3>

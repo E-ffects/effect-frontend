@@ -66,7 +66,7 @@ const source = computed(() => (aiState.provider?.startsWith('gemini') ? 'Gemini 
     </template>
   </PageHead>
   <!-- AI 요약 줄: 테두리 하나로만 구분 (붉은 그림자는 쓰지 않는다) -->
-  <div v-if="summaryPath" class="mb-6 flex items-center gap-3.5 rounded-[14px] border border-[#f3d6dc] bg-card px-5 py-3.5">
+  <div v-if="summaryPath" class="mb-6 flex items-center gap-3.5 rounded-[14px] border border-[#f3d6dc] bg-card shadow-card px-5 py-3.5">
     <span class="grid size-8 shrink-0 place-items-center rounded-[9px] bg-brand-soft text-primary"><Sparkles class="size-4" /></span>
     <span class="shrink-0 text-[13px] font-bold text-primary">AI INSIGHT</span>
     <Skeleton v-if="state === 'loading'" class="h-4 flex-1" />

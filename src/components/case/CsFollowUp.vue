@@ -49,7 +49,7 @@ async function record() {
     // 수정한 문안과 함께 초안 응답의 analysis_id·source 를 그대로 보낸다 (초안 없이 직접 쓴 문안은 MANUAL)
     await api(`/rmas/${rmaId.value}/communications`, {
       method: 'POST',
-      body: { message_text: text.value.trim(), source: draft.value?.source ?? 'MANUAL', analysis_id: draft.value?.analysis_id ?? null },
+      body: { message_text: text.value.trim(), source: draft.value?.source === 'AI_DRAFT' && edited.value ? 'AI_DRAFT_EDITED' : (draft.value?.source ?? 'MANUAL'), analysis_id: draft.value?.analysis_id ?? null },
     })
     toast({ title: '2차 회신을 기록했습니다', tone: 'green' })
     text.value = ''

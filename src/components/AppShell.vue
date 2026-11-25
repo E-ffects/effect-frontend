@@ -65,7 +65,7 @@ async function logout() {
 
 <template>
   <div class="min-h-screen overflow-x-clip">
-    <header class="sticky top-0 z-30 border-b border-[#eceef1] bg-white/90 backdrop-blur-md">
+    <header class="sticky top-0 z-30 border-b border-[#d5e6f7] bg-white/85 shadow-[0_8px_24px_-14px_rgb(30_80_150/0.35)] backdrop-blur-md">
       <!-- 헤더·본문·바닥글 모두 왼쪽 24px에서 시작: 에이전트 패널이 열려도 로고와 본문 왼쪽 끝이 같은 선에 있다 -->
       <div class="flex h-16 items-stretch gap-10 px-6">
         <RouterLink to="/" class="flex items-center"><BrandMark /></RouterLink>

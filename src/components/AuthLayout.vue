@@ -1,12 +1,16 @@
 <script setup>
 import BrandMark from './BrandMark.vue'
+import RobotStage from './RobotStage.vue'
+
+defineProps({ robot: Boolean }) // 로그인 화면: 왼쪽 패널에 PIXO 로봇을 둔다
 </script>
 
 <template>
   <!-- 로그인·회원가입 공통: 왼쪽 브랜드 소개 + 오른쪽 폼 -->
   <div class="grid min-h-screen bg-white lg:grid-cols-[0.9fr_1.1fr]">
-    <aside class="relative hidden flex-col justify-between overflow-hidden bg-[#fff5f5] p-14 lg:flex">
+    <aside :class="robot ? 'bg-[#fffdf3]' : 'bg-[#fff5f5]'" class="relative hidden flex-col justify-between gap-6 overflow-hidden p-14 lg:flex">
       <BrandMark large />
+      <RobotStage v-if="robot" />
       <div>
         <p class="mb-5 text-[12px] font-semibold tracking-[1.2px] text-muted-foreground">QUALITY, WITH CLARITY.</p>
         <h1 class="text-[44px] font-extrabold leading-[1.3] tracking-[-2px]">

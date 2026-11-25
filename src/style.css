@@ -31,8 +31,8 @@
   --color-destructive: #dc2626;
 
   /* 카드 입체감: 가까운 그림자(윤곽) + 먼 그림자(떠 있는 느낌), 푸른 배경에 맞춰 약한 파랑 기운 */
-  --shadow-card: 0 1px 2px rgb(16 42 90 / 0.06), 0 4px 10px -2px rgb(16 42 90 / 0.08), 0 14px 28px -10px rgb(30 80 150 / 0.18);
-  --shadow-card-hover: 0 2px 4px rgb(16 42 90 / 0.07), 0 8px 16px -4px rgb(16 42 90 / 0.1), 0 20px 36px -12px rgb(30 80 150 / 0.24);
+  --shadow-card: 0 0 0 1px rgb(30 80 150 / 0.05), 0 1px 1px rgb(16 42 90 / 0.04), 0 2px 5px rgb(16 42 90 / 0.05), 0 10px 18px -6px rgb(16 42 90 / 0.1), 0 28px 44px -18px rgb(30 80 150 / 0.26), inset 0 1px 0 rgb(255 255 255 / 0.95);
+  --shadow-card-hover: 0 0 0 1px rgb(30 80 150 / 0.08), 0 2px 3px rgb(16 42 90 / 0.05), 0 6px 10px rgb(16 42 90 / 0.07), 0 16px 26px -8px rgb(16 42 90 / 0.14), 0 36px 56px -20px rgb(30 80 150 / 0.34), inset 0 1px 0 rgb(255 255 255 / 0.95);
 
   /* 가독성: 작은 글자 단계를 한 단계씩 키우고 줄 간격을 넉넉하게 */
   --text-xs: 0.8125rem; /* 13px (기본 12px) */
@@ -50,13 +50,13 @@
     border-color: var(--color-border);
   }
   body {
-    /* 왼쪽 위는 가장 밝게(제목 글자가 읽히도록), 오른쪽·아래로 갈수록 파란 기운이 번진다 */
+    /* 위쪽은 하늘처럼 푸르고(#90CAF9→#BBDEFB), 내려갈수록 #E3F2FD를 거쳐 #FAFAFA로 가라앉는다.
+       오른쪽 위에만 #64B5F6 빛 한 줄기를 얹어 단조롭지 않게 한다 */
     background-color: #fafafa;
     background-image:
-      radial-gradient(900px 560px at 100% 0%, rgb(66 165 245 / 0.24), transparent 70%),
-      radial-gradient(1000px 640px at 88% 100%, rgb(100 181 246 / 0.3), transparent 68%),
-      radial-gradient(900px 620px at 0% 100%, rgb(144 202 249 / 0.28), transparent 70%),
-      linear-gradient(150deg, #e3f2fd 0%, #d3e9fc 38%, #e6f2fc 62%, #fafafa 100%);
+      radial-gradient(1200px 520px at 88% -12%, rgb(100 181 246 / 0.34), transparent 72%),
+      radial-gradient(1000px 460px at 4% -14%, rgb(144 202 249 / 0.5), transparent 70%),
+      linear-gradient(180deg, #c9e4fb 0, #dcedfc 360px, #eaf4fd 760px, #f5f9fd 1100px, #fafafa 100%);
     background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -87,6 +87,15 @@
   * {
     scrollbar-width: thin;
     scrollbar-color: #d4d7dd transparent;
+  }
+}
+
+/* 박스(카드)는 어느 화면에서든 같은 입체감: 흰 면 + 윗 모서리 하이라이트 + 겹겹의 그림자.
+   모서리가 둥근 큰 박스(14px·xl)만 대상이고, 점선 빈 상태·모달·드롭다운처럼 자기 그림자가 있는 것은 건드리지 않는다 */
+@layer components {
+  .bg-card:where(.rounded-\[14px\], .rounded-xl):not(.border-dashed) {
+    box-shadow: var(--shadow-card);
+    border-color: rgb(30 80 150 / 0.09);
   }
 }
 

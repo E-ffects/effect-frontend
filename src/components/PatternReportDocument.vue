@@ -114,7 +114,7 @@ function scrollToSection(id) {
       <p class="mt-1.5 text-[11px] text-muted-foreground">* 손실 금액은 제품 필터와 별개로 선택 기간 내 조사 전체 원장 합계 기준입니다.</p>
     </header>
 
-    <div class="space-y-6 px-7 pb-8 pt-6 text-sm leading-relaxed">
+    <div class="pdf-body space-y-5 px-7 pb-8 pt-6 text-sm leading-relaxed">
       <!-- 전달본 전용: QA 요청 사항 & 회신 기한 -->
       <section v-if="isDelivery" class="pdf-keep rounded-xl border border-[#f5c8d0] bg-[#fff8f9] p-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -174,19 +174,19 @@ function scrollToSection(id) {
         <h3 class="mb-2 flex items-center gap-2 text-[14.5px] font-bold"><span class="text-xs font-extrabold text-primary">03</span>참고 3D PCB 스택업 ({{ cad.partNo }})</h3>
         <div class="grid grid-cols-2 gap-3">
           <figure class="overflow-hidden rounded-xl border bg-[#f4f6f9]">
-            <img :src="cad.full" :alt="`${cad.partNo} 전체 3D 뷰`" class="block h-44 w-full object-contain" />
+            <img :src="cad.full" :alt="`${cad.partNo} 전체 3D 뷰`" class="pdf-cad-img block h-44 w-full object-contain" />
             <figcaption class="border-t bg-white px-3 py-1.5 text-[11px] text-muted-foreground">전체 3D 뷰 (표면 금회로 · 패드)</figcaption>
           </figure>
           <figure class="overflow-hidden rounded-xl border bg-[#f4f6f9]">
-            <img :src="cad.cut" :alt="`${cad.partNo} 단면 스택업 뷰`" class="block h-44 w-full object-contain" />
+            <img :src="cad.cut" :alt="`${cad.partNo} 단면 스택업 뷰`" class="pdf-cad-img block h-44 w-full object-contain" />
             <figcaption class="border-t bg-white px-3 py-1.5 text-[11px] text-muted-foreground">단면 스택업 확대 (관통 비아 · 층 구조)</figcaption>
           </figure>
         </div>
         <p class="mt-1.5 text-[11px] text-muted-foreground">※ 제품 사양 기반의 가정 치수 모델이며, 실제 설계 도면이나 보드 위 결함 좌표를 뜻하지 않습니다.</p>
       </section>
 
-      <!-- 04. 원인 판정 · 근거 · 공정 흐름 (제목 + 첫 블록을 pdf-keep으로 묶어 제목 고아 방지) -->
-      <section v-if="assessments.length || findings.length || processFlow.length" class="space-y-3">
+      <!-- 04. 원인 판정 · 근거 · 공정 흐름 -->
+      <section v-if="assessments.length || findings.length || processFlow.length" class="pdf-page-before space-y-3">
         <div class="pdf-keep space-y-2.5">
           <h3 class="flex items-center gap-2 text-[14.5px] font-bold"><span class="text-xs font-extrabold text-primary">04</span>원인 판정 및 공정 흐름</h3>
 
@@ -199,7 +199,7 @@ function scrollToSection(id) {
                 class="pdf-badge rounded-md border px-2 py-1 text-[11px] font-medium"
                 :class="s.defect_occurrence ? 'border-[#ea002c] bg-[#fff1f3] font-bold text-[#b3001f]' : s.detection_escape ? 'border-[#e8a33d] bg-[#fff8ec] font-bold text-[#9a6411]' : 'border-[#e3e5e9] bg-[#f8f9fb] text-[#5f6673]'"
               >
-                {{ s.name }}<span v-if="s.defect_occurrence" class="ml-1 inline-block rounded bg-[#ea002c] px-1.5 py-0.5 text-[9.5px] leading-none text-white">발생</span><span v-if="s.detection_escape" class="ml-1 inline-block rounded bg-[#e8a33d] px-1.5 py-0.5 text-[9.5px] leading-none text-white">유출</span>
+                {{ s.name }}<b v-if="s.defect_occurrence" class="ml-1 text-[#ea002c]">[발생]</b><b v-if="s.detection_escape" class="ml-1 text-[#b45309]">[유출]</b>
               </span>
             </div>
           </div>
@@ -229,8 +229,8 @@ function scrollToSection(id) {
         </ul>
       </section>
 
-      <!-- 05. 영향 Lot · 설비 · 자재 이력 (전체 폭 1단 배치로 설비 목록 반토막 공백 제거) -->
-      <section v-if="lots.length || equipment.length || materials.length" class="space-y-3">
+      <!-- 05. 영향 Lot · 설비 · 자재 이력 (새 페이지에서 깔끔하게 시작) -->
+      <section v-if="lots.length || equipment.length || materials.length" class="pdf-page-before space-y-3">
         <div class="pdf-keep space-y-2.5">
           <h3 class="flex items-center gap-2 text-[14.5px] font-bold"><span class="text-xs font-extrabold text-primary">05</span>연결 Lot · 설비 · 자재 이력</h3>
           <div v-if="lots.length" class="rounded-xl border p-3.5">

@@ -38,6 +38,13 @@ function normalizeForPdf(doc) {
       line-height: 1.35 !important;
       vertical-align: middle !important;
     }
+    .pdf-root .pdf-cad-img {
+      height: 142px !important;
+    }
+    .pdf-root .pdf-body {
+      padding-top: 16px !important;
+      padding-bottom: 4px !important;
+    }
   `
   doc.head.appendChild(style)
 
@@ -91,7 +98,7 @@ const loadHtml2pdf = () => import('html2pdf.js').then((m) => m.default)
 function configure(html2pdf, el, filename) {
   return html2pdf()
     .set({
-      margin: [11, 12, 15, 12],
+      margin: [10, 12, 13, 12],
       filename,
       image: { type: 'jpeg', quality: 0.96 },
       html2canvas: {

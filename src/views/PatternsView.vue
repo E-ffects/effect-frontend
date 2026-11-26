@@ -10,10 +10,9 @@ import Select from '@/components/ui/Select.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import ColumnChart from '@/components/charts/ColumnChart.vue'
 import PageHead from '@/components/PageHead.vue'
-import PatternReportDialog from '@/components/PatternReportDialog.vue'
 import { api, fmtWon } from '@/lib/api'
 import { GRADE_TONE } from '@/lib/badges'
-import { reportLoadError, reportRoute } from '@/lib/state'
+import { reportLoadError, reportRoute, toast } from '@/lib/state'
 import { useMeta, usePeriod } from '@/lib/meta'
 
 // SCR-PAT-001 불량 패턴 · 주요 원인 분석
@@ -38,8 +37,30 @@ const causeRows = computed(() =>
 )
 // 주요 원인 분포: 세로 막대 그래프 (상위 12개)
 const causeTiles = computed(() => (list.value?.causes || []).slice(0, 12))
-const reportOpen = ref(false)
+const creatingReport = ref(false)
 const selectedId = computed(() => route.query.patternId || list.value?.patterns[0]?.pattern_id || null)
+
+async function createPatternReport() {
+  if (!selectedId.value || creatingReport.value) return
+  creatingReport.value = true
+  try {
+    const res = await api(`/patterns/${selectedId.value}/reports`, {
+      method: 'POST',
+      body: {
+        from: from.value || null,
+        to: to.value || null,
+        product: product.value || null,
+      },
+    })
+    const reportId = res?.header?.report_id
+    if (!reportId) throw new Error('보고서 ID를 받지 못했습니다')
+    router.push({ path: '/quality/reports', query: { mode: 'pattern', reportId: String(reportId) } })
+  } catch (e) {
+    toast({ title: e.message || '불량 패턴 보고서 생성에 실패했습니다', tone: 'red' })
+  } finally {
+    creatingReport.value = false
+  }
+}
 
 watch(
   [from, to, () => route.query.product],
@@ -125,7 +146,7 @@ function select(id) {
     <div class="relative min-h-[460px]">
       <Card class="absolute inset-0" title="선택 패턴 근거 RMA">
         <template #actions>
-          <Button variant="outline" size="xs" :disabled="!detail" @click="reportOpen = true"><FileText class="size-3" />패턴 요약 보고서</Button>
+          <Button variant="outline" size="xs" :disabled="!detail" :loading="creatingReport" @click="createPatternReport"><FileText class="size-3" />보고서 생성</Button>
         </template>
         <div class="-mr-3 h-full overflow-y-auto pr-3">
         <Skeleton v-if="!detail" class="h-48" />
@@ -218,6 +239,4 @@ function select(id) {
       </Card>
     </div>
   </div>
-
-  <PatternReportDialog v-model:open="reportOpen" :pattern-id="selectedId" :from="from" :to="to" :show-link="false" />
 </template>

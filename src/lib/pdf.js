@@ -8,7 +8,6 @@ const COLOR_PROPS = [
 ]
 const MODERN = /oklch|oklab|color-mix|lab\(|lch\(/
 
-// 캔버스에 1픽셀을 칠한 뒤 읽어 sRGB rgba()로 바꾼다 (fillStyle 문자열은 oklab 그대로 남기 때문)
 function toRgb(ctx, value) {
   ctx.clearRect(0, 0, 1, 1)
   ctx.fillStyle = value
@@ -33,8 +32,35 @@ function flattenColors(doc) {
   }
 }
 
-// html2pdf의 worker는 Promise처럼 동작(thenable)하므로 async 함수에서 그대로 반환하면 풀려 버린다.
-// 라이브러리만 비동기로 불러오고, worker 체인은 동기로 만들어 바로 save()/outputPdf()까지 잇는다.
+// PDF 캡처 전 화면 글꼴(Pretendard 등)과 본문 내 이미지(CAD 정적 이미지 포함) 로드를 기다린다.
+async function waitAssetsReady(el) {
+  if (document.fonts?.ready) {
+    try {
+      await document.fonts.ready
+    } catch {
+      /* ignore font readiness errors */
+    }
+  }
+  const imgs = Array.from(el?.querySelectorAll?.('img') || [])
+  await Promise.all(
+    imgs.map(async (img) => {
+      if (!img.complete) {
+        await new Promise((resolve) => {
+          img.addEventListener('load', resolve, { once: true })
+          img.addEventListener('error', resolve, { once: true })
+        })
+      }
+      if (typeof img.decode === 'function') {
+        try {
+          await img.decode()
+        } catch {
+          /* ignore decode errors */
+        }
+      }
+    }),
+  )
+}
+
 const loadHtml2pdf = () => import('html2pdf.js').then((m) => m.default)
 
 function configure(html2pdf, el, filename) {
@@ -46,22 +72,24 @@ function configure(html2pdf, el, filename) {
       html2canvas: {
         scale: 2,
         backgroundColor: '#ffffff',
+        useCORS: true,
         ignoreElements: (node) => node.hasAttribute?.('data-pdf-ignore'),
         onclone: (doc) => flattenColors(doc),
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['section', 'li'] },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['section', 'li', 'tr', '.pdf-keep'] },
     })
     .from(el)
 }
 
 export async function saveElementAsPdf(el, filename) {
+  await waitAssetsReady(el)
   const html2pdf = await loadHtml2pdf()
   await configure(html2pdf, el, filename).save()
 }
 
-// 파일로 내려받지 않고 PDF 데이터만 만든다 (미리보기·검사용)
 export async function elementToPdfBlob(el) {
+  await waitAssetsReady(el)
   const html2pdf = await loadHtml2pdf()
   return configure(html2pdf, el, 'report.pdf').outputPdf('blob')
 }

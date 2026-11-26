@@ -51,8 +51,12 @@ function normalizeForPdf(doc) {
       padding-bottom: 14px !important;
     }
     .pdf-root th, .pdf-root td {
-      padding-top: 4px !important;
-      padding-bottom: 9px !important;
+      padding-top: 2px !important;
+      padding-bottom: 6px !important;
+    }
+    .pdf-root .pdf-keep, .pdf-root article, .pdf-root tr {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
     }
     .pdf-root .pdf-cad-img {
       height: 142px !important;

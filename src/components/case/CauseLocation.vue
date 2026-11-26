@@ -26,11 +26,15 @@ const regionRank = computed(() => {
   for (const c of cands.value) if (c.region && m[c.region] === undefined) m[c.region] = c.idx
   return m
 })
-const procRank = computed(() => {
+const procRanks = computed(() => {
   const m = {}
-  for (const c of cands.value) if (c.process_id && m[c.process_id] === undefined) m[c.process_id] = c.idx
+  for (const c of cands.value) {
+    if (!c.process_id) continue
+    ;(m[c.process_id] ||= []).push(c.idx)
+  }
   return m
 })
+const unmappedProcCands = computed(() => cands.value.filter((c) => c.region && !c.process_id))
 const lots = computed(() => r.value.candidate_lots || { items: [], total: 0 })
 const topLot = computed(() => lots.value.items?.[0])
 const sameEquip = (it) => it.shared?.find((s) => s.type === 'EQUIPMENT' && s.equipment_id === cands.value[0]?.equipment_id)
@@ -335,14 +339,23 @@ const suspectColor = (region) => (regionRank.value[region] !== undefined ? RANK[
           <li
             v-for="[id, name] in PROCESSES" :key="id"
             class="relative rounded-md border px-1 py-1.5 text-center text-[11px] leading-tight"
-            :class="procRank[id] === undefined && escape?.detection_process_id !== id ? 'border-[#e3e5e9] bg-[#f6f7f9] text-[#5f6673]' : 'font-semibold'"
-            :style="procRank[id] !== undefined ? { background: RANK[procRank[id]].soft, borderColor: RANK[procRank[id]].fill, color: RANK[procRank[id]].text } : escape?.detection_process_id === id ? { background: RANK[2].soft, borderColor: RANK[2].fill, color: RANK[2].text } : {}"
+            :class="!procRanks[id]?.length && escape?.detection_process_id !== id ? 'border-[#e3e5e9] bg-[#f6f7f9] text-[#5f6673]' : 'font-semibold'"
+            :style="procRanks[id]?.length ? { background: RANK[procRanks[id][0]].soft, borderColor: RANK[procRanks[id][0]].fill, color: RANK[procRanks[id][0]].text } : escape?.detection_process_id === id ? { background: RANK[2].soft, borderColor: RANK[2].fill, color: RANK[2].text } : {}"
             :title="id"
           >
-            <span v-if="procRank[id] !== undefined" class="absolute -top-2 left-1/2 grid size-4 -translate-x-1/2 place-items-center rounded-full text-[10px] font-bold text-white" :style="{ background: RANK[procRank[id]].fill }">{{ procRank[id] + 1 }}</span>
+            <span v-if="procRanks[id]?.length" class="absolute -top-2 left-1/2 flex -translate-x-1/2 items-center gap-0.5">
+              <span
+                v-for="rk in procRanks[id]" :key="rk"
+                class="grid size-4 place-items-center rounded-full text-[10px] font-bold text-white ring-1 ring-white"
+                :style="{ background: RANK[rk].fill }"
+              >{{ rk + 1 }}</span>
+            </span>
             {{ name }}
           </li>
         </ol>
+        <p v-if="unmappedProcCands.length" class="mt-1.5 text-[11px] text-muted-foreground">
+          {{ unmappedProcCands.map((c) => `${c.idx + 1}순위(${REGION_NAME[c.region]})`).join(', ') }}는 특정 공정 미지정으로 증상 기준 부위만 단면에 표시했습니다.
+        </p>
         <div v-if="!compact" class="mt-3 grid gap-2 text-xs md:grid-cols-2">
           <p v-if="escape" class="rounded-[10px] border border-[#d6dce6] bg-[#f3f5f9] px-3 py-2 text-[#3a404b]">
             <b class="text-[#4b5566]">왜 못 걸렀나 · {{ escape.escape_name }}</b><template v-if="escape.equipment_id"> ({{ escape.equipment_id }})</template><br />

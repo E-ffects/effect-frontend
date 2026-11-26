@@ -7,7 +7,19 @@ import { loadStackup, RANK, regionOfCandidate, regionOfLayer } from '@/lib/pcbRe
 const props = defineProps({ result: Object, partNo: String })
 const r = computed(() => props.result || {})
 
-const BASE = { SOLDERMASK: 0x1f7a45, COPPER: 0xc8763a, PREPREG: 0xdccf9e, CORE: 0xcbbc85, BUILDUP: 0xb9c19c, VIA: 0xc8763a, FINISH: 0xe6c34d }
+const BASE = {
+  SOLDERMASK: 0x15401b,
+  MASKED_TRACE: 0x245c26,
+  GOLD: 0xedbd2e,
+  COPPER: 0xc8763a,
+  PREPREG: 0xdccf9e,
+  CORE: 0xcbbc85,
+  BUILDUP: 0xb9c19c,
+  VIA: 0xc8763a,
+  FINISH: 0xedbd2e,
+  SILKSCREEN: 0xf2f2f0,
+  VIA_HOLE: 0x0a0d0a,
+}
 
 const el = ref(null)
 const status = ref('loading') // loading | ready | missing
@@ -54,10 +66,36 @@ async function init() {
       const name = o.parent && o.parent !== model && o.parent.name ? o.parent.name : o.name
       const l = layers.find((x) => name.startsWith(x.name + '_'))
       const isVia = name.startsWith('Via_') || name.startsWith('Microvia_')
-      const kind = name.startsWith('Finish_') ? 'FINISH' : isVia ? 'VIA' : l?.type || 'CORE'
-      const metal = ['COPPER', 'VIA', 'FINISH'].includes(kind)
-      o.material = new THREE.MeshStandardMaterial({ color: BASE[kind], roughness: metal ? 0.35 : 0.8, metalness: metal ? 0.5 : 0 })
-      o.userData = { region: kind === 'FINISH' ? 'pad' : isVia ? 'via' : l ? regionOfLayer(l, layers) : null, kind }
+      const isGoldArt = name.startsWith('Pads_Gold_') || name.startsWith('Traces_Gold_') || name.startsWith('Thermal_Vias_Gold')
+      const kind = name.startsWith('Finish_')
+        ? 'FINISH'
+        : isGoldArt
+          ? 'GOLD'
+          : name.startsWith('Traces_Masked_')
+            ? 'MASKED_TRACE'
+            : name.startsWith('Silkscreen_')
+              ? 'SILKSCREEN'
+              : name.startsWith('Thermal_Vias_Holes')
+                ? 'VIA_HOLE'
+                : isVia
+                  ? 'VIA'
+                  : l?.type || 'CORE'
+      const metal = ['COPPER', 'VIA', 'FINISH', 'GOLD'].includes(kind)
+      const isGold = kind === 'GOLD' || kind === 'FINISH'
+      o.material = new THREE.MeshStandardMaterial({
+        color: BASE[kind],
+        roughness: isGold ? 0.28 : metal ? 0.35 : 0.78,
+        metalness: isGold ? 0.65 : metal ? 0.5 : 0,
+      })
+      const region =
+        kind === 'FINISH' || name.startsWith('Pads_Gold_') || name.startsWith('Traces_Gold_')
+          ? 'pad'
+          : isVia || name.startsWith('Thermal_Vias_')
+            ? 'via'
+            : l
+              ? regionOfLayer(l, layers)
+              : null
+      o.userData = { region, kind }
       meshes.push(o)
     })
     // glTF는 미터·Y-위: FreeCAD mm로 되돌리고, 가장 얇은 축을 위로
@@ -146,6 +184,6 @@ onBeforeUnmount(() => {
     </label>
     <p v-if="status === 'loading'" class="absolute inset-0 grid place-items-center text-sm text-muted-foreground">3D 모델을 불러오는 중…</p>
     <p v-if="status === 'missing'" class="absolute inset-0 grid place-items-center text-sm text-muted-foreground">이 제품({{ partNo || '-' }})의 3D 모델이 없습니다.</p>
-    <p class="absolute bottom-3 left-3 rounded-md bg-[#20232b]/85 px-2 py-1 text-[11px] text-[#ffd54a]">가정 치수 모델 · 마우스로 돌리기·확대 · 회로 패턴·결함 좌표 없음</p>
+    <p class="absolute bottom-3 left-3 rounded-md bg-[#20232b]/85 px-2 py-1 text-[11px] text-[#ffd54a]">가정 치수 모델 · 마우스로 돌리기·확대 · 예시 표면 회로(실제 설계 도면·결함 좌표 아님)</p>
   </div>
 </template>

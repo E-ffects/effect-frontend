@@ -35,8 +35,16 @@ function normalizeForPdf(doc) {
     }
     .pdf-root .pdf-badge {
       display: inline-block !important;
-      line-height: 1.35 !important;
+      line-height: 1.15 !important;
+      padding-top: 2px !important;
+      padding-bottom: 7px !important;
       vertical-align: middle !important;
+      box-shadow: none !important;
+    }
+    .pdf-root .pdf-badge-outline {
+      border: 1px solid #d5dae2 !important;
+      background-color: #f8f9fb !important;
+      box-shadow: none !important;
     }
     .pdf-root .pdf-cad-img {
       height: 142px !important;

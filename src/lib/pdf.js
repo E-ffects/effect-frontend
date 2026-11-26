@@ -35,9 +35,9 @@ function normalizeForPdf(doc) {
     }
     .pdf-root .pdf-badge {
       display: inline-block !important;
-      line-height: 1.15 !important;
-      padding-top: 2px !important;
-      padding-bottom: 7px !important;
+      line-height: 1 !important;
+      padding-top: 0px !important;
+      padding-bottom: 10px !important;
       vertical-align: middle !important;
       box-shadow: none !important;
     }
@@ -45,6 +45,14 @@ function normalizeForPdf(doc) {
       border: 1px solid #d5dae2 !important;
       background-color: #f8f9fb !important;
       box-shadow: none !important;
+    }
+    .pdf-root .pdf-kpi-cell {
+      padding-top: 5px !important;
+      padding-bottom: 14px !important;
+    }
+    .pdf-root th, .pdf-root td {
+      padding-top: 4px !important;
+      padding-bottom: 9px !important;
     }
     .pdf-root .pdf-cad-img {
       height: 142px !important;

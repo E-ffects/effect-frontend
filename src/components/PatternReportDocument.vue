@@ -69,7 +69,7 @@ function scrollToSection(id) {
         <div class="flex flex-wrap items-center gap-1.5">
           <Badge v-if="isDelivery && delivery.department?.recommended" class="pdf-badge" tone="green">추천 대상 부서</Badge>
           <Badge v-if="!isDelivery && body.analysis_level" class="pdf-badge" tone="red">{{ body.analysis_level }}</Badge>
-          <Badge v-if="!isDelivery && body.investigation_status" class="pdf-badge" tone="outline">{{ body.investigation_status }}</Badge>
+          <Badge v-if="!isDelivery && body.investigation_status" class="pdf-badge pdf-badge-outline" tone="outline">{{ body.investigation_status }}</Badge>
         </div>
       </div>
 
@@ -214,7 +214,7 @@ function scrollToSection(id) {
               <tr v-for="(a, i) in assessments" :key="i" class="border-t">
                 <td class="px-3 py-2 font-semibold">{{ KIND_LABEL[a.kind] || a.kind }}</td>
                 <td class="px-3 py-2">{{ a.name }} <span v-if="a.code" class="text-muted-foreground">({{ a.code }})</span></td>
-                <td class="px-3 py-2"><Badge class="pdf-badge" tone="outline">{{ a.status }}</Badge></td>
+                <td class="px-3 py-2"><Badge class="pdf-badge pdf-badge-outline" tone="outline">{{ a.status }}</Badge></td>
                 <td class="px-3 py-2">{{ [a.process_id, a.equipment_id].filter(Boolean).join(' · ') || '—' }}</td>
               </tr>
             </tbody>
@@ -277,7 +277,7 @@ function scrollToSection(id) {
               <span class="flex items-center gap-2 text-muted-foreground">
                 <span v-if="actions[0].due_at">목표 {{ fmtDate(actions[0].due_at) }}</span>
                 <span v-if="actions[0].implemented_at">적용 {{ fmtDate(actions[0].implemented_at) }}</span>
-                <Badge class="pdf-badge" tone="outline">{{ actions[0].verification_status || '진행 중' }}</Badge>
+                <Badge class="pdf-badge pdf-badge-outline" tone="outline">{{ actions[0].verification_status || '진행 중' }}</Badge>
               </span>
             </div>
             <p class="mt-1.5 text-[13px] text-[#2d3440]">{{ actions[0].description }}</p>
@@ -304,7 +304,7 @@ function scrollToSection(id) {
             <span class="flex items-center gap-2 text-muted-foreground">
               <span v-if="act.due_at">목표 {{ fmtDate(act.due_at) }}</span>
               <span v-if="act.implemented_at">적용 {{ fmtDate(act.implemented_at) }}</span>
-              <Badge class="pdf-badge" tone="outline">{{ act.verification_status || '진행 중' }}</Badge>
+              <Badge class="pdf-badge pdf-badge-outline" tone="outline">{{ act.verification_status || '진행 중' }}</Badge>
             </span>
           </div>
           <p class="mt-1.5 text-[13px] text-[#2d3440]">{{ act.description }}</p>
@@ -354,7 +354,7 @@ function scrollToSection(id) {
               <span class="ml-2 text-xs text-muted-foreground">{{ ec.part_no }} · 접수 {{ fmtDate(ec.opened_on) }} · {{ ec.detection_stage || '—' }}</span>
             </div>
             <div class="flex items-center gap-2">
-              <Badge class="pdf-badge" tone="outline">{{ SELECTION_LABEL[ec.selection_reason] || ec.selection_reason || ec.qa_status }}</Badge>
+              <Badge class="pdf-badge pdf-badge-outline" tone="outline">{{ SELECTION_LABEL[ec.selection_reason] || ec.selection_reason || ec.qa_status }}</Badge>
               <button
                 data-pdf-ignore
                 class="text-xs font-semibold text-primary underline-offset-2 hover:underline"

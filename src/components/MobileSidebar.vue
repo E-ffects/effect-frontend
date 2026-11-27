@@ -7,6 +7,7 @@ import {
   FileSearch,
   Folder,
   Layers,
+  LayoutDashboard,
   LogOut,
   MessageSquare,
   SquarePen,
@@ -36,10 +37,12 @@ const navItems = computed(() =>
   props.isCs
     ? [
         { id: 'chat', label: '새 채팅', icon: SquarePen },
+        { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
         { id: 'rmas', label: 'RMA 조회', icon: FileSearch },
       ]
     : [
         { id: 'chat', label: '새 채팅', icon: SquarePen },
+        { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
         { id: 'rmas', label: 'RMA 조회', icon: FileSearch },
         { id: 'patterns', label: '불량 패턴 분석', icon: Layers },
         { id: 'approvals', label: '원인 판정', icon: ClipboardCheck },

@@ -15,12 +15,22 @@ import { agentPanel, aiState, auth, chatContext, setAgentPanelOpen } from '@/lib
 const route = useRoute()
 const router = useRouter()
 const isCs = computed(() => auth.user?.role === 'CS')
-const target = computed(() => chatContext.rmaId)
+// 현재 화면(라우트 파라미터·쿼리 + chatContext)에서 개별 RMA와 불량 패턴을 자동으로 감지
+const target = computed(() => {
+  const fromParam = route.params.rmaId ? String(route.params.rmaId) : null
+  const fromOpen = route.query.open ? String(route.query.open) : null
+  const fromReport = route.path === '/quality/reports' && route.query.mode !== 'pattern' && route.query.rmaId ? String(route.query.rmaId) : null
+  return fromParam || fromOpen || fromReport || chatContext.rmaId || null
+})
+const patternTarget = computed(() => {
+  if (isCs.value || !route.path.startsWith('/quality/patterns')) return null
+  return chatContext.patternId || (route.query.patternId ? String(route.query.patternId) : null)
+})
 const activeScope = computed(() => {
-  if (!isCs.value && route.path.startsWith('/quality/patterns') && chatContext.patternId) {
+  if (patternTarget.value) {
     return {
       type: 'PATTERN',
-      id: chatContext.patternId,
+      id: patternTarget.value,
       ...(chatContext.patternFrom ? { from: chatContext.patternFrom } : {}),
       ...(chatContext.patternTo ? { to: chatContext.patternTo } : {}),
     }
@@ -34,14 +44,35 @@ const thread = computed(() => agentPanel.thread)
 const scroller = ref(null)
 const busy = ref(false)
 
-const tasks = computed(() => [
-  isCs.value && { key: 'intake', icon: FilePlus2, title: '새 반품 접수', desc: '왼쪽에 접수 폼을 엽니다', needsTarget: false },
-  { key: 'similar', icon: Search, title: '유사 사례 찾기', desc: '현재 RMA 기준 과거 사례 조회', needsTarget: true },
-  {
-    key: 'analysis', icon: ClipboardCheck, title: '분석 결과 보기', needsTarget: true,
-    desc: isCs.value ? '왼쪽에 고객 응대 상세를 엽니다' : '왼쪽에 원인·근거·승인 항목을 엽니다',
-  },
-].filter(Boolean))
+const tasks = computed(() => {
+  // 1) 불량 패턴 분석 화면: 선택된 개별 패턴에 대한 상세 분석 버튼
+  if (activeScope.value?.type === 'PATTERN') {
+    return [
+      { key: 'pattern_detail', icon: Sparkles, title: '선택 패턴 상세 분석', desc: `${activeScope.value.id}의 원인·유출·추이 종합 설명`, needsTarget: false },
+      { key: 'pattern_actions', icon: ClipboardCheck, title: '영향 설비·Lot · 대책 요약', desc: '연결 설비·Lot 현황 및 시정 조치 정리', needsTarget: false },
+    ]
+  }
+  // 2) 개별 RMA 화면: 해당 RMA 상세 설명·유사 사례·분석 요약 버튼
+  if (activeScope.value?.type === 'RMA') {
+    return [
+      {
+        key: 'rma_explain', icon: Sparkles, title: '이 RMA 상세 설명', needsTarget: true,
+        desc: isCs.value ? `${target.value}의 증상·진행·고객 안내 요약` : `${target.value}의 원인 후보·핵심 근거·승인 상세`,
+      },
+      { key: 'similar', icon: Search, title: '유사 사례 찾기', desc: `${target.value} 기준 과거 유사 사례 조회`, needsTarget: true },
+      {
+        key: 'analysis', icon: ClipboardCheck, title: '분석 결과 요약', needsTarget: true,
+        desc: isCs.value ? '고객 응대·처리방안 요약 보기' : '원인·공정·설비·승인 상태 요약 보기',
+      },
+    ]
+  }
+  // 3) 그 외 범용 화면 (대시보드·목록 등)
+  return [
+    isCs.value && { key: 'intake', icon: FilePlus2, title: '새 반품 접수', desc: '왼쪽에 접수 폼을 엽니다', needsTarget: false },
+    { key: 'go_rmas', icon: Search, title: 'RMA 조회로 이동', desc: '개별 RMA를 열면 상세 분석을 바로 실행합니다', needsTarget: false },
+    !isCs.value && { key: 'go_patterns', icon: ClipboardCheck, title: '불량 패턴 분석으로 이동', desc: '패턴을 클릭하면 해당 건을 상세 분석합니다', needsTarget: false },
+  ].filter(Boolean)
+})
 
 function push(msg) {
   // fresh: 이 화면에서 방금 생긴 메시지 → 올라오며 나타나고, 답변은 단어 단위로 흐른다 (다 나오면 false)
@@ -57,10 +88,37 @@ function scroll() {
   nextTick(() => scroller.value && (scroller.value.scrollTop = scroller.value.scrollHeight))
 }
 
-const openRma = (id) => router.push({ path: '/rmas', query: { open: id } })
+const openRma = (id) => router.push(`/rmas/${id}/case`)
 
 async function run(t) {
   if (busy.value || (t.needsTarget && !target.value)) return
+  if (t.key === 'go_rmas') {
+    router.push('/rmas')
+    return
+  }
+  if (t.key === 'go_patterns') {
+    router.push('/quality/patterns')
+    return
+  }
+  if (t.key === 'rma_explain') {
+    const prompt = isCs.value
+      ? `${target.value}의 접수 증상, 현재 진행 상태, 고객 처리방안 제안 및 회신 안내 사항을 알기 쉽게 정리해 줘.`
+      : `${target.value}의 증상, 1·2순위 원인 후보와 공정·설비·Lot 핵심 근거, 재발 여부 및 QA 승인 상태를 상세히 설명해 줘.`
+    return sendText(prompt, t.title)
+  }
+  if (t.key === 'pattern_detail') {
+    return sendText(
+      `불량 패턴 ${activeScope.value.id}의 핵심 발생 원인, 검출 유출 요인, 발생 추이와 주요 근거 사례를 상세히 분석해 줘.`,
+      t.title,
+    )
+  }
+  if (t.key === 'pattern_actions') {
+    return sendText(
+      `불량 패턴 ${activeScope.value.id}에 연결된 주요 영향 설비와 생산 Lot, 현재 진행 중인 시정 조치 및 검증 현황을 정리해 줘.`,
+      t.title,
+    )
+  }
+
   push({ role: 'user', text: t.title })
   if (t.key === 'intake') {
     router.push({ path: '/cs/intake', query: { from: 'agent' } })
@@ -75,8 +133,8 @@ async function run(t) {
       msg.items = await fetchSimilar(rmaId)
       msg.view = isCs.value ? 'cs' : 'quality'
     } else {
-      if (route.path !== '/rmas' || route.query.open !== rmaId) openRma(rmaId)
-      msg.result = await fetchAnalysis(rmaId)
+      if (route.path !== `/rmas/${rmaId}/case`) openRma(rmaId)
+      msg.result = await fetchAnalysis(rmaId, isCs.value)
     }
   } catch (e) {
     msg.error = e.message
@@ -112,7 +170,10 @@ watch(
   async ([key, token]) => {
     const seq = ++threadSeq
     currentThreadId.value = null
-    if (!key || !token || !activeScope.value) return
+    if (!key || !token || !activeScope.value) {
+      agentPanel.thread = []
+      return
+    }
     const { type, id } = activeScope.value
     try {
       const res = await api('/chat/threads', { query: { scope_type: type, scope_id: id } })
@@ -163,18 +224,17 @@ function handleSuggestion(s) {
   }
 }
 
-async function send() {
-  const text = input.value.trim()
-  if (!text || busy.value) return
-  input.value = ''
-  push({ role: 'user', text })
+async function sendText(text, displayLabel = null) {
+  const clean = text.trim()
+  if (!clean || busy.value) return
+  push({ role: 'user', text: displayLabel || clean })
   if (!activeScope.value) {
     push({
       role: 'bot',
       kind: 'text',
       text: isCs.value
-        ? '먼저 왼쪽 RMA 목록에서 사례를 열어 주세요. 열려 있는 RMA를 기준으로 답변해 드립니다.'
-        : '먼저 왼쪽에서 RMA 사례나 불량 패턴을 선택해 주세요. 선택한 대상을 기준으로 답변해 드립니다.',
+        ? '현재 범용 화면입니다. 왼쪽 RMA 조회에서 개별 RMA를 열면 해당 건에 대한 상세 설명·유사 사례·RAG 질문을 바로 사용하실 수 있습니다.'
+        : '현재 범용 화면입니다. 개별 RMA 상세 또는 불량 패턴 분석에서 한 건을 선택하면 해당 건에 대한 심층 RAG 분석을 바로 사용하실 수 있습니다.',
     })
     return
   }
@@ -182,7 +242,7 @@ async function send() {
   busy.value = true
   try {
     const body = {
-      message: text,
+      message: clean,
       scope: activeScope.value,
       ...(currentThreadId.value ? { thread_id: currentThreadId.value } : {}),
     }
@@ -199,6 +259,13 @@ async function send() {
     busy.value = false
     scroll()
   }
+}
+
+async function send() {
+  const text = input.value.trim()
+  if (!text || busy.value) return
+  input.value = ''
+  return sendText(text)
 }
 
 const stepIcon = { done: CheckCircle2, hold: PauseCircle }
@@ -313,7 +380,7 @@ onBeforeUnmount(() => {
       >
         <component :is="t.icon" class="size-[18px]" />
       </button>
-      <span v-if="target" class="mt-2 rotate-180 text-[11px] font-semibold text-muted-foreground tabular [writing-mode:vertical-rl]">{{ target }}</span>
+      <span v-if="activeScope" class="mt-2 rotate-180 text-[11px] font-semibold text-muted-foreground tabular [writing-mode:vertical-rl]">{{ activeScope.id }}</span>
     </div>
 
     <div :inert="!agentPanel.open" class="flex h-full w-[380px] max-w-full flex-col">
@@ -329,7 +396,7 @@ onBeforeUnmount(() => {
       <span v-if="activeScope" class="tabular rounded-md border bg-card px-1.5 py-0.5 font-semibold">
         {{ activeScope.type === 'PATTERN' ? `패턴 ${activeScope.id}` : activeScope.id }}
       </span>
-      <span v-else class="text-muted-foreground">RMA 조회에서 사례를 열면 지정됩니다</span>
+      <span v-else class="text-muted-foreground">범용 (RMA·패턴 선택 시 상세 분석)</span>
       <span class="ml-auto rounded-[5px] bg-brand-soft px-1.5 py-0.5 font-semibold text-primary">{{ isCs ? 'CS 권한' : 'QA 권한' }}</span>
     </div>
 

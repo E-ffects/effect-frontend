@@ -12,6 +12,7 @@ import { agentPanel, aiState, auth, clearSession, NOT_READY, setAgentPanelOpen }
 const router = useRouter()
 useMeta()
 const isQuality = computed(() => auth.user?.role === 'QUALITY')
+const isAdmin = computed(() => auth.user?.is_admin === true)
 const initials = computed(() => (auth.user?.name || '').slice(-2))
 
 const menus = computed(() =>
@@ -23,11 +24,13 @@ const menus = computed(() =>
         { to: '/quality/patterns', label: '불량 패턴 분석' },
         { to: '/quality/recurrence', label: '알림 및 재발 관리' },
         { to: '/quality/reports', label: 'AI 보고서' },
+        ...(isAdmin.value ? [{ to: '/admin/users', label: '가입 승인' }] : []),
       ]
     : [
         { to: '/cs/dashboard', label: '대시보드' },
         { to: '/rmas', label: 'RMA 조회' },
         { to: '/cs/intake', label: '반품 접수' },
+        ...(isAdmin.value ? [{ to: '/admin/users', label: '가입 승인' }] : []),
       ]).filter((m) => !NOT_READY.has(m.to)),
 )
 

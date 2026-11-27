@@ -17,6 +17,7 @@ const routes = [
   { path: '/quality/patterns', component: () => import('./views/PatternsView.vue'), meta: { role: 'QUALITY' } },
   { path: '/quality/reports', component: () => import('./views/ReportsView.vue'), meta: { role: 'QUALITY' } },
   { path: '/quality/recurrence', component: () => import('./views/RecurrenceView.vue'), meta: { role: 'QUALITY' } },
+  { path: '/admin/users', component: () => import('./views/AdminUsersView.vue'), meta: { admin: true } },
   { path: '/:pathMatch(.*)*', redirect: '/error?code=404' },
 ]
 
@@ -27,6 +28,7 @@ router.beforeEach((to, from) => {
   if (!auth.token) return { path: '/login', query: { redirect: to.fullPath } }
   if (typeof window !== 'undefined' && window.innerWidth < 768 && to.path !== '/m') return '/m'
   if (to.meta.role && to.meta.role !== auth.user?.role) return { path: '/error', query: { code: 403 } }
+  if (to.meta.admin && !auth.user?.is_admin) return { path: '/error', query: { code: 403 } }
   if (NOT_READY.has(to.path)) return homePath() // 백엔드가 아직 없는 화면 (북마크·이전 링크)
   return restoreQuery(to, from) || true // 필터 기억 (대시보드 기간·RMA 조회·불량 패턴·알림·재발)
 })

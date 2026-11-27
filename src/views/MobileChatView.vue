@@ -12,10 +12,12 @@ import {
   PanelLeft,
   Search,
   Sparkles,
+  Star,
+  Wrench,
 } from 'lucide-vue-next'
 import FluidBg from '@/components/FluidBg.vue'
 import MobileSidebar from '@/components/MobileSidebar.vue'
-import { api } from '@/lib/api'
+import { api, fmtDate, timeAgo } from '@/lib/api'
 import { auth, clearSession } from '@/lib/state'
 
 // 모바일 전용 Flowstate 다크 + ChatGPT 스타일 통합 뷰 (/m)
@@ -26,10 +28,11 @@ const isCs = computed(() => auth.user?.role === 'CS')
 const sidebarOpen = ref(false)
 const activeTab = ref('chat') // 'chat' | 'rmas' | 'patterns' | 'approvals' | 'alerts'
 
+const GENERAL_SCOPE = { key: 'GENERAL', type: 'GENERAL', id: null, label: '범용 AI', sub: '전체 지식·기준' }
+
 // 스코프 목록 (상단 선택 칩) & 실제 채팅 이력이 있는 항목들 ("채팅 한 것만")
 const scopes = ref([]) // [{ key, type: 'RMA'|'PATTERN', id, label, sub }]
-const activeIdx = ref(0)
-const activeScope = computed(() => scopes.value[activeIdx.value] || null)
+const activeScope = ref(GENERAL_SCOPE)
 const threadMap = ref({}) // { [key]: { key, type, id, label, preview, count } }
 
 const rmaThreads = computed(() =>
@@ -48,22 +51,32 @@ const revealed = ref(false)
 const scroller = ref(null)
 const inputEl = ref(null)
 
-// 모바일 최적화 페이지 데이터 (RMA 조회 / 불량 패턴 / 원인 판정 / 알림)
+// 모바일 최적화 페이지 데이터
 const rmaList = ref([])
 const rmaQuery = ref('')
 const rmaLoading = ref(false)
 
 const patternList = ref([])
+const patternQuery = ref('')
 const patternLoading = ref(false)
 
 const approvalList = ref([])
 const approvalLoading = ref(false)
 
+// 알림 및 재발 (알림 센터 + 재발·대책 서브탭)
+const alertSubTab = ref('alerts') // 'alerts' | 'actions'
 const alertList = ref([])
 const alertLoading = ref(false)
+const actionList = ref([])
+const actionLoading = ref(false)
+const expandedAlertId = ref(null)
+const highlightedActionId = ref(null)
+
+const ACTION_ROLE = { OCCURRENCE: '발생 대책', ESCAPE: '유출 대책', PREVENTION: '예방 대책', HORIZONTAL: '수평 전개' }
+const ACTION_STATUS = { IMPLEMENTING: '시행 중', MONITORING: '효과 확인 중', EFFECTIVE: '효과있음', NOT_EFFECTIVE: '효과없음' }
 
 const heroWords = ['무엇을', '분석해', '드릴까요?']
-const subWords = ['선택된', 'PCB', '사례와', '사내', '품질', '기준을', '바탕으로', '즉시', '답변합니다.']
+const subWords = ['PCB', '반품', '이력과', '사내', '품질', '기준을', '바탕으로', '즉시', '답변합니다.']
 
 const tabTitle = computed(() => {
   if (activeTab.value === 'rmas') return 'RMA 조회'
@@ -73,9 +86,34 @@ const tabTitle = computed(() => {
   return 'E!ffect AI'
 })
 
+const filteredPatterns = computed(() => {
+  const q = patternQuery.value.trim().toLowerCase()
+  if (!q) return patternList.value
+  return patternList.value.filter((p) => {
+    const hay = [p.pattern_id, p.product, p.part_no, p.defect_type, p.major_name, p.minor_name, p.summary]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return hay.includes(q)
+  })
+})
+
 const quickPrompts = computed(() => {
   const sc = activeScope.value
-  if (!sc) return []
+  if (!sc || sc.type === 'GENERAL') {
+    if (isCs.value) {
+      return [
+        { label: 'RMA 처리 절차 · 기준 안내', text: 'PCB 반품 접수 후 표준 처리 절차와 고객 안내 기준을 요약해 줘.' },
+        { label: '주요 불량 유형별 대응 가이드', text: '자주 발생하는 PCB 불량 유형별 기본 고객 안내 포인트를 정리해 줘.' },
+        { label: '보증 · 재발 판정 기준', text: '사내 품질 기준에서 재발 판정과 보상 처리 기준이 어떻게 되나요?' },
+      ]
+    }
+    return [
+      { label: 'PCB 주요 불량 원인 · 공정 기준', text: '주요 PCB 불량 유형별 핵심 발생 공정과 사내 품질 관리 기준을 요약해 줘.' },
+      { label: '재발 판정 · 대책 검증 기준', text: '시정 대책 시행 후 재발 여부와 대책 효과를 판정하는 기준을 설명해 줘.' },
+      { label: '검출 유출 방지 점검 포인트', text: 'AOI·X-Ray 등 공정 검사에서 불량 유출을 막기 위한 핵심 점검 항목을 알려줘.' },
+    ]
+  }
   if (sc.type === 'PATTERN') {
     return [
       { label: '핵심 원인·추이 분석', text: `불량 패턴 ${sc.id}의 핵심 발생 원인과 최근 발생 추이를 요약해 줘.` },
@@ -98,7 +136,7 @@ const quickPrompts = computed(() => {
 })
 
 function scopeKey(type, id) {
-  return `${type}:${id}`
+  return type === 'GENERAL' ? 'GENERAL' : `${type}:${id}`
 }
 
 function storageKey() {
@@ -115,6 +153,7 @@ function loadSavedThreadKeys() {
 }
 
 function persistThreadKey(type, id, label) {
+  if (type === 'GENERAL') return
   try {
     const list = loadSavedThreadKeys()
     const key = scopeKey(type, id)
@@ -128,7 +167,7 @@ function persistThreadKey(type, id, label) {
 }
 
 function registerActiveThread(sc, msgs) {
-  if (!sc || !msgs?.length) return
+  if (!sc || sc.type === 'GENERAL' || !msgs?.length) return
   const lastMsg = msgs[msgs.length - 1]
   const preview = (lastMsg?.text || '').replace(/\s+/g, ' ').slice(0, 42)
   const key = scopeKey(sc.type, sc.id)
@@ -153,7 +192,6 @@ function scrollBottom() {
 }
 
 async function probeActiveThreads(candidates) {
-  // 저장된 이력 + 로드된 스코프를 합쳐 실제 메시지가 있는 스레드만 좌측 사이드바에 등록
   const map = new Map()
   for (const s of loadSavedThreadKeys()) map.set(s.key, s)
   for (const c of candidates) map.set(c.key, c)
@@ -213,25 +251,40 @@ async function loadScopes() {
     openChatFor('RMA', qRma, qRma)
   } else if (qPat && !isCs.value) {
     openChatFor('PATTERN', qPat, `패턴 ${qPat}`)
+  } else {
+    startNewGeneralChat()
   }
 
   probeActiveThreads(list)
 }
 
+function startNewGeneralChat() {
+  threadSeq++
+  activeScope.value = GENERAL_SCOPE
+  threadId.value = null
+  messages.value = []
+  input.value = ''
+  activeTab.value = 'chat'
+}
+
 function openChatFor(type, id, label = null) {
+  if (type === 'GENERAL') {
+    startNewGeneralChat()
+    return
+  }
   const key = scopeKey(type, id)
-  let idx = scopes.value.findIndex((s) => s.key === key)
-  if (idx < 0) {
-    scopes.value.unshift({
+  let found = scopes.value.find((s) => s.key === key)
+  if (!found) {
+    found = {
       key,
       type,
       id,
       label: label || (type === 'PATTERN' ? `패턴 ${id}` : id),
       sub: '',
-    })
-    idx = 0
+    }
+    scopes.value.unshift(found)
   }
-  activeIdx.value = idx
+  activeScope.value = found
   activeTab.value = 'chat'
 }
 
@@ -242,7 +295,7 @@ watch(
     const seq = ++threadSeq
     threadId.value = null
     messages.value = []
-    if (!sc) return
+    if (!sc || sc.type === 'GENERAL') return
     try {
       const res = await api('/chat/threads', { query: { scope_type: sc.type, scope_id: sc.id } })
       if (seq !== threadSeq) return
@@ -262,14 +315,13 @@ watch(
       /* ignore */
     }
   },
-  { immediate: true },
 )
 
 async function sendText(raw) {
   const text = raw.trim()
-  if (!text || busy.value || !activeScope.value) return
+  if (!text || busy.value) return
 
-  const sc = activeScope.value
+  const sc = activeScope.value || GENERAL_SCOPE
   messages.value.push({ id: Date.now() + Math.random(), role: 'user', text })
   const botMsg = { id: Date.now() + Math.random(), role: 'bot', text: '', loading: true, evidence: [], suggestions: [] }
   messages.value.push(botMsg)
@@ -278,9 +330,10 @@ async function sendText(raw) {
 
   busy.value = true
   try {
+    const scopePayload = sc.type === 'GENERAL' ? { type: 'GENERAL' } : { type: sc.type, id: sc.id }
     const body = {
       message: text,
-      scope: { type: sc.type, id: sc.id },
+      scope: scopePayload,
       ...(threadId.value ? { thread_id: threadId.value } : {}),
     }
     const res = await api('/chat', { method: 'POST', body })
@@ -350,7 +403,7 @@ async function loadApprovals() {
 async function loadAlerts() {
   alertLoading.value = true
   try {
-    const res = await api('/alerts', { query: { limit: 30 } })
+    const res = await api('/alerts', { query: { limit: 40 } })
     alertList.value = Array.isArray(res) ? res : res?.items || []
   } catch {
     alertList.value = []
@@ -359,14 +412,70 @@ async function loadAlerts() {
   }
 }
 
+async function loadActions() {
+  actionLoading.value = true
+  try {
+    const res = await api('/recurrence/actions', { query: { size: 40 } })
+    actionList.value = res?.items || []
+  } catch {
+    actionList.value = []
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function onAlertClick(al) {
+  expandedAlertId.value = expandedAlertId.value === al.id ? null : al.id
+  if (!al.read) {
+    al.read = true
+    api(`/alerts/${al.id}/read`, { method: 'POST' }).catch(() => {})
+  }
+}
+
+async function toggleAlertStar(al) {
+  al.starred = !al.starred
+  api(`/alerts/${al.id}/star`, { method: 'POST' }).catch(() => {
+    al.starred = !al.starred
+  })
+}
+
+function jumpToAlertTarget(al) {
+  if (al.rma_id) {
+    openChatFor('RMA', al.rma_id, al.rma_id)
+    return
+  }
+  if (al.pattern_id) {
+    openChatFor('PATTERN', al.pattern_id, `패턴 ${al.pattern_id}`)
+    return
+  }
+  if (al.recur_id) {
+    highlightedActionId.value = al.recur_id
+    alertSubTab.value = 'actions'
+    if (!actionList.value.length) loadActions()
+  }
+}
+
+function alertToneClass(type) {
+  if (['고위험', '급증', '반복 재발'].includes(type)) return 'border-red-400/35 bg-red-500/15 text-red-200'
+  if (['재발 의심', '확산형'].includes(type)) return 'border-amber-400/35 bg-amber-500/15 text-amber-200'
+  return 'border-cyan-400/30 bg-cyan-500/15 text-cyan-200'
+}
+
 watch(activeTab, (tab) => {
   if (tab === 'rmas' && !rmaList.value.length) loadRmas()
   if (tab === 'patterns' && !patternList.value.length) loadPatterns()
   if (tab === 'approvals' && !approvalList.value.length) loadApprovals()
-  if (tab === 'alerts' && !alertList.value.length) loadAlerts()
+  if (tab === 'alerts') {
+    if (!alertList.value.length) loadAlerts()
+    if (!actionList.value.length) loadActions()
+  }
 })
 
 function handleSelectTab(tab) {
+  if (tab === 'chat') {
+    startNewGeneralChat()
+    return
+  }
   activeTab.value = tab
 }
 
@@ -411,7 +520,7 @@ onMounted(() => {
       @logout="logout"
     />
 
-    <!-- 상단 글래스 헤더 (전체 화면 버튼 없음 — 모바일 전용) -->
+    <!-- 상단 글래스 헤더 -->
     <header
       class="relative z-20 flex shrink-0 items-center justify-between px-4 pb-2.5 pt-[max(0.875rem,env(safe-area-inset-top))] transition-all duration-700"
       :class="revealed ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0'"
@@ -443,18 +552,29 @@ onMounted(() => {
 
     <!-- ===================== 1. AI 채팅 탭 ===================== -->
     <template v-if="activeTab === 'chat'">
-      <!-- 대상 RMA / 불량 패턴 선택 바 -->
-      <div v-if="scopes.length" class="relative z-20 flex shrink-0 items-center gap-1.5 overflow-x-auto px-4 pb-2.5 [scrollbar-width:none]">
+      <!-- 범용 + RMA / 불량 패턴 선택 바 -->
+      <div class="relative z-20 flex shrink-0 items-center gap-1.5 overflow-x-auto px-4 pb-2.5 [scrollbar-width:none]">
         <button
-          v-for="(sc, idx) in scopes"
-          :key="sc.key"
           class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur-md transition"
           :class="
-            idx === activeIdx
+            activeScope?.type === 'GENERAL'
               ? 'border-white/80 bg-white text-[#1c1d22] shadow-sm'
               : 'border-white/15 bg-white/8 text-[#b9becf] hover:bg-white/14 hover:text-white'
           "
-          @click="activeIdx = idx"
+          @click="startNewGeneralChat"
+        >
+          범용 AI
+        </button>
+        <button
+          v-for="sc in scopes"
+          :key="sc.key"
+          class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur-md transition"
+          :class="
+            activeScope?.key === sc.key
+              ? 'border-white/80 bg-white text-[#1c1d22] shadow-sm'
+              : 'border-white/15 bg-white/8 text-[#b9becf] hover:bg-white/14 hover:text-white'
+          "
+          @click="activeScope = sc"
         >
           {{ sc.label }}
         </button>
@@ -469,7 +589,7 @@ onMounted(() => {
             style="transition-delay: 220ms"
           >
             <Sparkles class="size-3 text-cyan-300" />
-            {{ activeScope ? `${activeScope.label} RAG 분석 준비됨` : 'PCB RMA RAG Assistant' }}
+            {{ activeScope?.type === 'GENERAL' ? '범용 PCB 품질·CS 어시스턴트' : `${activeScope.label} RAG 분석 준비됨` }}
           </p>
 
           <h1 class="mt-4 text-[30px] font-medium leading-[1.15] tracking-[-0.02em] text-[#eef0f6] sm:text-[38px]">
@@ -581,13 +701,13 @@ onMounted(() => {
           <input
             ref="inputEl"
             v-model="input"
-            :disabled="busy || !activeScope"
-            :placeholder="activeScope ? `${activeScope.label}에 대해 물어보세요…` : '대상을 불러오는 중…'"
+            :disabled="busy"
+            :placeholder="activeScope?.type === 'GENERAL' ? '무엇이든 물어보세요…' : `${activeScope.label}에 대해 물어보세요…`"
             class="h-full min-w-0 flex-1 bg-transparent text-[14.5px] text-[#eef0f6] placeholder:text-[#b9becf]/80 focus:outline-none"
           />
           <button
             type="submit"
-            :disabled="busy || !input.trim() || !activeScope"
+            :disabled="busy || !input.trim()"
             aria-label="질문 전송"
             class="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#2f2f33] shadow-sm transition hover:bg-white/85 disabled:opacity-35"
           >
@@ -627,7 +747,7 @@ onMounted(() => {
               </span>
             </div>
             <p class="mt-1.5 text-[12.5px] text-[#b9becf]">
-              {{ r.reported_part_no || '-' }} · {{ r.defect_type || '유형 미지정' }}
+              {{ r.reported_part_no || '-' }} · {{ r.minor_name || r.defect_type || '유형 미지정' }}
             </p>
             <div class="mt-3 flex items-center justify-between">
               <span class="text-[11px] text-[#b9becf]/65">{{ r.customer_name || '' }}</span>
@@ -643,35 +763,51 @@ onMounted(() => {
       </div>
     </main>
 
-    <!-- ===================== 3. 모바일 불량 패턴 탭 ===================== -->
+    <!-- ===================== 3. 모바일 불량 패턴 탭 (검색창 포함) ===================== -->
     <main v-else-if="activeTab === 'patterns'" class="relative z-10 flex-1 overflow-y-auto px-4 pb-6">
-      <div class="mx-auto max-w-xl space-y-2.5">
+      <div class="mx-auto max-w-xl space-y-3">
+        <div class="flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3.5 backdrop-blur-md">
+          <Search class="size-4 shrink-0 text-[#b9becf]" />
+          <input
+            v-model="patternQuery"
+            placeholder="패턴 ID, 제품, 불량 유형 검색…"
+            class="h-full min-w-0 flex-1 bg-transparent text-[13.5px] text-white placeholder:text-[#b9becf]/70 focus:outline-none"
+          />
+          <span v-if="patternList.length" class="shrink-0 text-[11px] text-[#b9becf]/70">
+            {{ filteredPatterns.length }}건
+          </span>
+        </div>
+
         <div v-if="patternLoading" class="py-10 text-center text-xs text-[#b9becf]">불량 패턴을 불러오는 중…</div>
-        <div v-else-if="!patternList.length" class="py-10 text-center text-xs text-[#b9becf]">탐지된 불량 패턴이 없습니다.</div>
-        <div
-          v-for="p in patternList"
-          :key="p.pattern_id"
-          class="rounded-2xl border border-white/12 bg-[#0b0f1f]/78 p-3.5 backdrop-blur-md"
-        >
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-              <Layers class="size-4 text-violet-300" />
-              <span class="text-[14px] font-semibold text-white">패턴 {{ p.pattern_id }}</span>
+        <div v-else-if="!filteredPatterns.length" class="py-10 text-center text-xs text-[#b9becf]">
+          {{ patternQuery ? '검색 조건에 맞는 불량 패턴이 없습니다.' : '탐지된 불량 패턴이 없습니다.' }}
+        </div>
+        <div v-else class="space-y-2.5">
+          <div
+            v-for="p in filteredPatterns"
+            :key="p.pattern_id"
+            class="rounded-2xl border border-white/12 bg-[#0b0f1f]/78 p-3.5 backdrop-blur-md"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <Layers class="size-4 text-violet-300" />
+                <span class="text-[14px] font-semibold text-white">패턴 {{ p.pattern_id }}</span>
+              </div>
+              <span class="rounded-full border border-violet-300/30 bg-violet-400/15 px-2 py-0.5 text-[11px] text-violet-200">
+                {{ p.total_count ?? p.count ?? 0 }}건
+              </span>
             </div>
-            <span class="rounded-full border border-violet-300/30 bg-violet-400/15 px-2 py-0.5 text-[11px] text-violet-200">
-              {{ p.total_count ?? p.count ?? 0 }}건
-            </span>
-          </div>
-          <p class="mt-1.5 text-[12.5px] text-[#b9becf]">
-            {{ p.product || p.part_no || '-' }} · {{ p.defect_type || '' }}
-          </p>
-          <div class="mt-3 flex justify-end">
-            <button
-              class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
-              @click="openChatFor('PATTERN', p.pattern_id, `패턴 ${p.pattern_id}`)"
-            >
-              <Sparkles class="size-3" />AI 패턴 분석
-            </button>
+            <p class="mt-1.5 text-[12.5px] text-[#b9becf]">
+              {{ p.product || p.part_no || '-' }} · {{ p.defect_type || p.minor_name || '' }}
+            </p>
+            <div class="mt-3 flex justify-end">
+              <button
+                class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
+                @click="openChatFor('PATTERN', p.pattern_id, `패턴 ${p.pattern_id}`)"
+              >
+                <Sparkles class="size-3" />AI 패턴 분석
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -711,35 +847,132 @@ onMounted(() => {
       </div>
     </main>
 
-    <!-- ===================== 5. 모바일 알림 및 재발 탭 ===================== -->
+    <!-- ===================== 5. 모바일 알림 및 재발 탭 (상세 정보 + 인터랙션 + 대책 서브탭) ===================== -->
     <main v-else-if="activeTab === 'alerts'" class="relative z-10 flex-1 overflow-y-auto px-4 pb-6">
-      <div class="mx-auto max-w-xl space-y-2.5">
-        <div v-if="alertLoading" class="py-10 text-center text-xs text-[#b9becf]">알림을 불러오는 중…</div>
-        <div v-else-if="!alertList.length" class="py-10 text-center text-xs text-[#b9becf]">최근 알림이 없습니다.</div>
-        <div
-          v-for="al in alertList"
-          :key="al.id"
-          class="rounded-2xl border border-white/12 bg-[#0b0f1f]/78 p-3.5 backdrop-blur-md"
-        >
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-              <Bell class="size-4 text-cyan-300" />
-              <span class="text-[13.5px] font-medium text-white">{{ al.title || al.type || '알림' }}</span>
-            </div>
-            <span v-if="!al.read" class="size-2 rounded-full bg-cyan-400" />
-          </div>
-          <p v-if="al.message || al.summary" class="mt-1.5 text-[12.5px] leading-relaxed text-[#b9becf]">
-            {{ al.message || al.summary }}
-          </p>
-          <div v-if="al.rma_id || al.pattern_id" class="mt-3 flex justify-end">
-            <button
-              class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
-              @click="al.pattern_id ? openChatFor('PATTERN', al.pattern_id, `패턴 ${al.pattern_id}`) : openChatFor('RMA', al.rma_id, al.rma_id)"
-            >
-              <Sparkles class="size-3" />AI 분석
-            </button>
-          </div>
+      <div class="mx-auto max-w-xl space-y-3">
+        <!-- 서브탭: 알림 센터 | 재발·대책 -->
+        <div class="grid grid-cols-2 gap-1.5 rounded-full border border-white/14 bg-white/[0.06] p-1 backdrop-blur-md">
+          <button
+            class="rounded-full py-1.5 text-xs font-medium transition"
+            :class="alertSubTab === 'alerts' ? 'bg-white text-[#1c1d22]' : 'text-[#b9becf] hover:text-white'"
+            @click="alertSubTab = 'alerts'"
+          >
+            알림 센터 ({{ alertList.length }})
+          </button>
+          <button
+            class="rounded-full py-1.5 text-xs font-medium transition"
+            :class="alertSubTab === 'actions' ? 'bg-white text-[#1c1d22]' : 'text-[#b9becf] hover:text-white'"
+            @click="alertSubTab = 'actions'"
+          >
+            재발 · 대책 ({{ actionList.length }})
+          </button>
         </div>
+
+        <!-- 5-A. 알림 센터 -->
+        <template v-if="alertSubTab === 'alerts'">
+          <div v-if="alertLoading" class="py-10 text-center text-xs text-[#b9becf]">알림을 불러오는 중…</div>
+          <div v-else-if="!alertList.length" class="py-10 text-center text-xs text-[#b9becf]">최근 알림이 없습니다.</div>
+          <div v-else class="space-y-2.5">
+            <div
+              v-for="al in alertList"
+              :key="al.id"
+              class="cursor-pointer rounded-2xl border bg-[#0b0f1f]/82 p-3.5 backdrop-blur-md transition active:scale-[0.995]"
+              :class="expandedAlertId === al.id ? 'border-cyan-300/40' : 'border-white/12'"
+              @click="onAlertClick(al)"
+            >
+              <!-- 상단: 유형 배지 + 대상 라벨 + 시간 + 즐겨찾기 -->
+              <div class="flex items-center gap-2">
+                <span v-if="!al.read" class="size-2 shrink-0 rounded-full bg-rose-400" />
+                <span class="shrink-0 rounded-full border px-2 py-0.5 text-[10.5px] font-medium" :class="alertToneClass(al.type)">
+                  {{ al.type || '알림' }}
+                </span>
+                <span class="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-white">
+                  {{ al.target_label || al.title || al.rma_id || '상세 확인' }}
+                </span>
+                <span class="shrink-0 text-[11px] text-[#b9becf]/65">{{ al.created_at ? timeAgo(al.created_at) : '' }}</span>
+                <button
+                  class="grid size-7 shrink-0 place-items-center rounded-full hover:bg-white/10"
+                  :class="al.starred ? 'text-amber-300' : 'text-[#b9becf]/60'"
+                  aria-label="즐겨찾기"
+                  @click.stop="toggleAlertStar(al)"
+                >
+                  <Star class="size-3.5" :fill="al.starred ? 'currentColor' : 'none'" />
+                </button>
+              </div>
+
+              <!-- 본문: 발생 사유(reason) + 먼저 확인(check_items) -->
+              <p v-if="al.reason || al.message || al.summary" class="mt-2 text-[12.5px] leading-relaxed text-[#d7dce9]">
+                {{ al.reason || al.message || al.summary }}
+              </p>
+              <div
+                v-if="al.check_items"
+                class="mt-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] leading-relaxed text-[#b9becf]"
+              >
+                <b class="font-semibold text-white/90">먼저 확인:</b> {{ al.check_items }}
+              </div>
+
+              <!-- 하단 액션: RMA/패턴 AI 분석 또는 연결 대책 보기 -->
+              <div
+                v-if="al.rma_id || al.pattern_id || al.recur_id"
+                class="mt-3 flex items-center justify-between border-t border-white/8 pt-2.5"
+              >
+                <span class="text-[11px] text-[#b9becf]/65">
+                  {{ al.rma_id ? `연결 RMA: ${al.rma_id}` : al.pattern_id ? `연결 패턴: ${al.pattern_id}` : '연결 시정 대책 있음' }}
+                </span>
+                <button
+                  class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
+                  @click.stop="jumpToAlertTarget(al)"
+                >
+                  <Sparkles class="size-3" />
+                  {{ al.rma_id || al.pattern_id ? 'AI 분석 채팅' : '대책 상세 보기' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- 5-B. 재발 · 대책 관리 -->
+        <template v-else>
+          <div v-if="actionLoading" class="py-10 text-center text-xs text-[#b9becf]">대책 이력을 불러오는 중…</div>
+          <div v-else-if="!actionList.length" class="py-10 text-center text-xs text-[#b9becf]">등록된 시정 대책이 없습니다.</div>
+          <div v-else class="space-y-2.5">
+            <div
+              v-for="ac in actionList"
+              :key="ac.corrective_action_id"
+              class="rounded-2xl border bg-[#0b0f1f]/82 p-3.5 backdrop-blur-md"
+              :class="highlightedActionId === ac.corrective_action_id ? 'border-cyan-300/50' : 'border-white/12'"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2">
+                  <Wrench class="size-4 shrink-0 text-cyan-300" />
+                  <span class="truncate text-[13.5px] font-semibold text-white">
+                    {{ ac.title || ac.description || ac.rma_id || `대책 #${ac.corrective_action_id}` }}
+                  </span>
+                </div>
+                <span class="shrink-0 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10.5px] text-[#eef0f6]">
+                  {{ ACTION_STATUS[ac.verification_status] || ac.verification_status || '진행 중' }}
+                </span>
+              </div>
+              <p class="mt-1.5 text-[12px] text-[#b9becf]">
+                {{ ACTION_ROLE[ac.action_role] || ac.action_role || '대책' }}
+                <span v-if="ac.owner_dept"> · {{ ac.owner_dept }}</span>
+                <span v-if="ac.implemented_at"> · 시행 {{ fmtDate(ac.implemented_at) }}</span>
+              </p>
+              <div class="mt-2.5 flex items-center justify-between">
+                <span class="text-[11.5px]" :class="ac.recurrence_count > 0 ? 'font-medium text-rose-300' : 'text-emerald-300'">
+                  {{ ac.recurrence_count > 0 ? `시행 후 재발 ${ac.recurrence_count}건` : '시행 후 재발 없음' }}
+                </span>
+                <button
+                  v-if="ac.rma_id"
+                  class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
+                  @click="openChatFor('RMA', ac.rma_id, ac.rma_id)"
+                >
+                  <Sparkles class="size-3" />AI 분석
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
     </main>
   </div>

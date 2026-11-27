@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertTriangle, LogOut, PanelRight } from 'lucide-vue-next'
+import { AlertTriangle, LogOut, PanelRight, Sparkles } from 'lucide-vue-next'
 import BrandMark from './BrandMark.vue'
 import NotificationBell from './NotificationBell.vue'
 import AgentPanel from './AgentPanel.vue'
@@ -94,6 +94,14 @@ async function logout() {
             AI {{ aiState.available ? '정상' : '장애' }}
             <span v-if="aiState.available && aiState.provider" class="hidden text-muted-foreground/70 xl:inline">{{ aiState.provider }}</span>
           </component>
+          <RouterLink
+            to="/m"
+            class="flex items-center gap-1 whitespace-nowrap rounded-lg bg-[#04050c] px-2.5 py-1.5 text-[12px] font-semibold text-white hover:bg-[#151828] md:hidden"
+            title="모바일 AI 채팅 화면으로 이동"
+          >
+            <Sparkles class="size-3.5 text-cyan-300" />
+            <span>AI 채팅</span>
+          </RouterLink>
           <button
             v-if="!NOT_READY.has('chat')"
             :aria-pressed="agentPanel.open"

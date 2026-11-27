@@ -40,6 +40,8 @@ export function clearSession() {
 export const NOT_READY = new Set([])
 
 export function homePath(user = auth.user) {
+  // 모바일(< 768px)에서는 로그인 직후 다크 Flowstate AI 채팅 화면(/m)으로 진입한다
+  if (typeof window !== 'undefined' && window.innerWidth < 768) return '/m'
   if (user?.role === 'CS') return '/cs/dashboard'
   return NOT_READY.has('/quality/dashboard') ? '/quality/approvals' : '/quality/dashboard'
 }

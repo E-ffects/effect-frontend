@@ -7,6 +7,7 @@ const routes = [
   { path: '/login', component: () => import('./views/LoginView.vue'), meta: { public: true, bare: true } },
   { path: '/signup', component: () => import('./views/SignupView.vue'), meta: { public: true, bare: true } },
   { path: '/error', component: () => import('./views/ErrorView.vue'), meta: { public: true, bare: true } },
+  { path: '/m', component: () => import('./views/MobileChatView.vue'), meta: { bare: true } },
   { path: '/quality/dashboard', component: () => import('./views/QualityDashboard.vue'), meta: { role: 'QUALITY' } },
   { path: '/cs/dashboard', component: () => import('./views/CsDashboard.vue'), meta: { role: 'CS' } },
   { path: '/rmas', component: () => import('./views/RmaList.vue') },

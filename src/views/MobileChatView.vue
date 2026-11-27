@@ -16,7 +16,9 @@ import {
   Wrench,
 } from 'lucide-vue-next'
 import FluidBg from '@/components/FluidBg.vue'
+import MobileBriefing from '@/components/MobileBriefing.vue'
 import MobileSidebar from '@/components/MobileSidebar.vue'
+import SiriOrb from '@/components/motion/SiriOrb.vue'
 import { api, fmtDate, timeAgo } from '@/lib/api'
 import { auth, clearSession } from '@/lib/state'
 
@@ -79,6 +81,7 @@ const heroWords = ['무엇을', '분석해', '드릴까요?']
 const subWords = ['PCB', '반품', '이력과', '사내', '품질', '기준을', '바탕으로', '즉시', '답변합니다.']
 
 const tabTitle = computed(() => {
+  if (activeTab.value === 'dashboard') return '오늘의 브리핑'
   if (activeTab.value === 'rmas') return 'RMA 조회'
   if (activeTab.value === 'patterns') return '불량 패턴 분석'
   if (activeTab.value === 'approvals') return '원인 판정'
@@ -581,8 +584,16 @@ onMounted(() => {
       </div>
 
       <main ref="scroller" class="relative z-10 flex-1 overflow-y-auto px-4 pb-4">
-        <!-- 대화 전: Flowstate 히어로 -->
-        <div v-if="!messages.length" class="mx-auto flex min-h-full max-w-md flex-col items-center justify-center py-6 text-center">
+        <!-- 대화 전: SmoothUI Siri Orb + Flowstate 히어로 -->
+        <div v-if="!messages.length" class="mx-auto flex min-h-full max-w-md flex-col items-center justify-center py-5 text-center">
+          <div
+            class="mb-4 transition-all duration-700"
+            :class="revealed ? 'scale-100 opacity-100' : 'scale-90 opacity-0'"
+            style="transition-delay: 120ms"
+          >
+            <SiriOrb :size="108" :state="busy ? 'thinking' : 'idle'" />
+          </div>
+
           <p
             class="inline-flex items-center gap-1.5 rounded-full border border-white/16 bg-white/8 px-3.5 py-1 text-[11.5px] text-[#b9becf] backdrop-blur-md transition-all duration-700"
             :class="revealed ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'"
@@ -716,6 +727,15 @@ onMounted(() => {
         </form>
       </footer>
     </template>
+
+    <!-- ===================== 1-B. 모바일 대시보드 (오늘의 브리핑) ===================== -->
+    <main v-else-if="activeTab === 'dashboard'" class="relative z-10 flex-1 overflow-y-auto px-4 pb-6">
+      <MobileBriefing
+        :is-cs="isCs"
+        @open-chat="(p) => openChatFor(p.type, p.id, p.label)"
+        @open-tab="(t) => (activeTab = t)"
+      />
+    </main>
 
     <!-- ===================== 2. 모바일 RMA 조회 탭 ===================== -->
     <main v-else-if="activeTab === 'rmas'" class="relative z-10 flex-1 overflow-y-auto px-4 pb-6">

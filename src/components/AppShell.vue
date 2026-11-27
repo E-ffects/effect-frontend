@@ -7,7 +7,7 @@ import NotificationBell from './NotificationBell.vue'
 import AgentPanel from './AgentPanel.vue'
 import { api, MOCK, referenceDate } from '@/lib/api'
 import { useMeta } from '@/lib/meta'
-import { agentPanel, aiState, auth, clearSession, NOT_READY, setAgentPanelOpen } from '@/lib/state'
+import { agentPanel, aiState, auth, clearSession, NOT_READY, setAgentPanelOpen, setSession } from '@/lib/state'
 
 const router = useRouter()
 useMeta()
@@ -51,8 +51,19 @@ async function toggleAi() {
   aiState.available = (await api('/ai/toggle', { method: 'POST', body: { available: !aiState.available } })).available
 }
 
+async function syncMe() {
+  if (!auth.token) return
+  try {
+    const me = await api('/auth/me')
+    if (me) setSession(auth.token, { ...auth.user, ...me })
+  } catch {
+    /* ignore */
+  }
+}
+
 let timer
 onMounted(() => {
+  syncMe()
   checkAi()
   timer = setInterval(checkAi, 60000)
 })

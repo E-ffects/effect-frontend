@@ -238,9 +238,9 @@ const evidenceMetrics = computed(() => {
     </div>
 
     <div class="fold" :data-open="open">
-      <div class="grid grid-cols-1 gap-6 pt-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+      <div class="grid grid-cols-1 gap-6 pt-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <!-- 좌측: 7단계 실행 타임라인 -->
-        <ol id="agent-steps" aria-label="에이전트 진행 단계">
+        <ol id="agent-steps" class="min-w-0" aria-label="에이전트 진행 단계">
           <li v-for="(s, i) in steps" :key="s.id" class="relative flex gap-3 pt-3">
             <!-- 아이콘 사이 선: 완료되면 위에서부터 채워진다 -->
             <span v-if="i < steps.length - 1" aria-hidden="true" class="absolute bottom-[-10px] left-[7.5px] top-[32px] w-px overflow-hidden bg-[#e6e8ec]">
@@ -295,7 +295,7 @@ const evidenceMetrics = computed(() => {
         </ol>
 
         <!-- 우측: 단계별 처리 시간 워터폴 + 탐색 근거 요약 -->
-        <aside class="flex flex-col justify-between gap-4 border-t border-[#eef0f3] pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-2">
+        <aside class="flex min-w-0 flex-col justify-between gap-4 border-t border-[#eef0f3] pt-4 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-2">
           <div>
             <div class="mb-2.5 flex items-center justify-between">
               <p class="text-xs font-semibold text-[#5f6673]">단계별 처리 시간 분포</p>

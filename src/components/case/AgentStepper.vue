@@ -112,7 +112,8 @@ const pos = (k) => `${(k / (N.value - 1)) * 100}%`
 </script>
 
 <template>
-  <div class="px-10 pb-1 pt-2">
+  <div class="overflow-x-auto pb-1">
+    <div class="min-w-[740px] px-10 pb-1 pt-2">
     <!-- 막대와 칸 -->
     <div class="relative h-8">
       <span class="absolute inset-x-0 top-[14px] h-1 rounded-full bg-[#e6e8ec]" />
@@ -151,6 +152,7 @@ const pos = (k) => `${(k / (N.value - 1)) * 100}%`
           </Transition>
         </p>
       </div>
+    </div>
     </div>
   </div>
 </template>

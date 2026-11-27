@@ -400,7 +400,7 @@ async function downloadPdf() {
           <Button :loading="busy" @click="useDraft"><RefreshCw class="size-4" />새 초안으로 교체</Button>
         </span>
       </div>
-      <div class="grid grid-cols-2 divide-x">
+      <div class="grid grid-cols-1 divide-y xl:grid-cols-2 xl:divide-x xl:divide-y-0">
         <div class="min-w-0 px-6 py-5">
           <div class="mb-4 flex items-center justify-between">
             <p class="text-sm font-bold">기존 보고서</p>
@@ -426,8 +426,8 @@ async function downloadPdf() {
       </p>
     </section>
 
-    <div v-else class="grid grid-cols-[320px_1fr] items-start gap-4">
-      <Card title="보고서 이력" :description="history ? `${filteredHistory.length} / ${history.length}건, 미확인 우선` : ''" :padded="false" class="sticky top-[84px]">
+    <div v-else class="grid grid-cols-1 items-start gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <Card title="보고서 이력" :description="history ? `${filteredHistory.length} / ${history.length}건, 미확인 우선` : ''" :padded="false" class="xl:sticky xl:top-[84px]">
         <div class="grid grid-cols-2 gap-2 px-4 pt-3">
           <Select v-model="hf.review" size="sm" class="col-span-2" placeholder="검토 상태 전체" :options="[{ value: 'todo', label: '미확인' }, { value: 'done', label: '확인 완료' }]" />
           <Select v-model="hf.product" size="sm" placeholder="전체 제품" :options="uniq('product')" />
@@ -476,7 +476,7 @@ async function downloadPdf() {
               <Button v-if="!editing" data-pdf-ignore variant="outline" size="sm" @click="startEdit"><PenLine class="size-3.5" />본문 수정</Button>
             </div>
 
-            <dl class="mt-6 grid grid-cols-4 gap-px overflow-hidden rounded-xl border border-[#f1dfe2] bg-[#f1dfe2] text-[13px]">
+            <dl class="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[#f1dfe2] bg-[#f1dfe2] text-[13px] sm:grid-cols-4">
               <div class="bg-white/80 px-4 py-3"><dt class="text-muted-foreground">대상 제품</dt><dd class="mt-1 text-[15px] font-bold">{{ current.product }} / PCB</dd></div>
               <div class="bg-white/80 px-4 py-3"><dt class="text-muted-foreground">접수일</dt><dd class="mt-1 text-[15px] font-bold tabular">{{ fmtDate(current.claim_date) }}</dd></div>
               <div class="bg-white/80 px-4 py-3"><dt class="text-muted-foreground">심각도</dt><dd class="mt-1"><Badge :tone="SEVERITY_TONE[current.severity]">{{ current.severity }}</Badge></dd></div>
@@ -540,13 +540,13 @@ async function downloadPdf() {
       </p>
     </Card>
 
-    <div class="grid grid-cols-[320px_1fr] items-start gap-4">
+    <div class="grid grid-cols-1 items-start gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
       <!-- 좌측 패턴 보고서 이력 -->
       <Card
         title="패턴 보고서 이력"
         :description="patternHistory ? `${patternHistory.length}건${activePatternFilter ? ` (${activePatternFilter})` : ''}` : ''"
         :padded="false"
-        class="sticky top-[84px]"
+        class="xl:sticky xl:top-[84px]"
       >
         <div class="max-h-[min(640px,calc(100vh-236px))] overflow-y-auto p-2">
           <Skeleton v-if="patternHistory === null" class="m-3 h-40" />
@@ -573,10 +573,10 @@ async function downloadPdf() {
       </Card>
 
       <!-- 우측 패턴 보고서 상세 + 부서 전달본 미리보기 -->
-      <div class="space-y-4">
+      <div class="min-w-0 space-y-4">
         <!-- 부서 선택 → 전달본 미리보기 컨트롤 패널 -->
         <Card v-if="patternDetail" title="부서별 전달본 미리보기" description="부서를 선택하고 QA 요청 사항·회신 기한을 입력해 전달용 PDF를 미리 볼 수 있습니다.">
-          <div class="grid gap-3 md:grid-cols-[220px_180px_1fr]">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[200px_165px_minmax(0,1fr)]">
             <div>
               <label class="mb-1 block text-xs font-semibold text-muted-foreground" for="dept-select">전달 대상 부서</label>
               <select

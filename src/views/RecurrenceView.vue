@@ -137,7 +137,7 @@ const resetFilter = () => (f.value = { ...EMPTY_FILTER })
 <template>
   <PageHead :crumb="false" title="알림 및 재발 관리" description="대책 이후의 변화를 추적하고, 반복되는 문제를 놓치지 마세요." />
 
-  <div class="grid grid-cols-[460px_1fr] gap-4">
+  <div class="grid grid-cols-1 gap-4 xl:grid-cols-[400px_minmax(0,1fr)]">
     <Card title="알림 센터" :padded="false" class="row-span-2">
       <!-- 카드 높이는 오른쪽 열(추이 + 대책 이력)에 맞추고, 목록은 남는 높이를 채운 뒤 안에서 스크롤 -->
       <div class="flex h-full flex-col">
@@ -205,7 +205,7 @@ const resetFilter = () => (f.value = { ...EMPTY_FILTER })
       <template v-else>
         <p v-if="!trend.completed_dt" class="mb-2 rounded-md bg-muted px-3 py-1.5 text-xs text-muted-foreground">대책 시행 후 비교됩니다 (아직 시행 전)</p>
         <BeforeAfterChart :points="trend.points" :completed="fmtDate(trend.completed_dt)" :before-avg="trend.before_avg" :after-avg="trend.after_avg" />
-        <div class="mt-4 grid grid-cols-4 gap-3 text-sm">
+        <div class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
           <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">주간 평균 접수 전 → 후</p><p class="mt-1 font-semibold tabular">{{ fmtNum(trend.before_avg) }} → {{ fmtNum(trend.after_avg) }}건</p></div>
           <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">최근 3주 추세</p><p class="mt-1 font-semibold" :class="{ 'text-red-600': trend.recent_trend === '증가', 'text-emerald-600': trend.recent_trend === '감소' }">{{ trend.recent_trend || '—' }}</p></div>
           <div class="rounded-lg border p-3"><p class="text-xs text-muted-foreground">효과 판정</p><p class="mt-1"><Badge v-if="selectedAction" :tone="STATUS_TONE[selectedAction.verification_status]">{{ label(STATUS, selectedAction.verification_status) }}</Badge></p></div>
@@ -266,7 +266,7 @@ const resetFilter = () => (f.value = { ...EMPTY_FILTER })
   <ActionManage v-if="actions" class="mt-4" :action="selectedAction" :actions="actions" :role-map="ROLE" :category-map="CATEGORY" @changed="onActionChanged" />
 
   <Card title="판정 및 알림 기준" class="mt-4">
-    <div class="grid grid-cols-2 gap-6 text-xs text-muted-foreground">
+    <div class="grid grid-cols-1 gap-6 text-xs text-muted-foreground md:grid-cols-2">
       <ul class="list-disc space-y-1 pl-4">
         <li><b class="text-foreground">재발 의심</b>: 대책 완료 이후(발생일 기준) 같은 제품, 같은 불량 유형 RMA 발생 → 벨 + 토스트</li>
         <li><b class="text-foreground">확산형 재발 의심</b>: 대책 이후 다른 제품이지만 같은 설비, 같은 유형 발생 → 벨 + 토스트</li>

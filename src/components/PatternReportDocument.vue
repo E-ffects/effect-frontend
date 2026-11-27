@@ -102,8 +102,8 @@ function scrollToSection(id) {
         </button>
       </div>
 
-      <!-- 핵심 집계 요약 (A4 폭에서도 넉넉하도록 3x2 / 넓은 화면 6열) -->
-      <dl class="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-[#f1dfe2] bg-[#f1dfe2] text-[12px] lg:grid-cols-6">
+      <!-- 핵심 집계 요약 (좁은 화면 2열 → 중간 3열 → 넓은 화면 6열) -->
+      <dl class="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[#f1dfe2] bg-[#f1dfe2] text-[12px] sm:grid-cols-3 2xl:grid-cols-6">
         <div class="pdf-kpi-cell bg-white/90 px-3 py-2.5"><dt class="text-muted-foreground">클레임 건수</dt><dd class="mt-0.5 text-[15px] font-bold">{{ totals.claims ?? 0 }}건</dd></div>
         <div class="pdf-kpi-cell bg-white/90 px-3 py-2.5"><dt class="text-muted-foreground">영향 Lot</dt><dd class="mt-0.5 text-[15px] font-bold">{{ totals.lots ?? 0 }}개</dd></div>
         <div class="pdf-kpi-cell bg-white/90 px-3 py-2.5"><dt class="text-muted-foreground">청구 수량</dt><dd class="mt-0.5 text-[15px] font-bold">{{ (totals.claimed_quantity ?? 0).toLocaleString() }}</dd></div>
@@ -172,7 +172,7 @@ function scrollToSection(id) {
       <!-- 03. 참고 3D CAD 모델 (원본 기준 정적 2장면, 모델 없으면 생략) -->
       <section v-if="cad" class="pdf-keep">
         <h3 class="mb-2 flex items-center gap-2 text-[14.5px] font-bold"><span class="text-xs font-extrabold text-primary">03</span>참고 3D PCB 스택업 ({{ cad.partNo }})</h3>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <figure class="overflow-hidden rounded-xl border bg-[#f4f6f9]">
             <img :src="cad.full" :alt="`${cad.partNo} 전체 3D 뷰`" class="pdf-cad-img block h-44 w-full object-contain" />
             <figcaption class="border-t bg-white px-3 py-1.5 text-[11px] text-muted-foreground">전체 3D 뷰 (표면 금회로 · 패드)</figcaption>

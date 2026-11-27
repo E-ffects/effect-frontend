@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FileText, Sparkles } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
@@ -12,7 +12,7 @@ import ColumnChart from '@/components/charts/ColumnChart.vue'
 import PageHead from '@/components/PageHead.vue'
 import { api, fmtWon } from '@/lib/api'
 import { GRADE_TONE } from '@/lib/badges'
-import { reportLoadError, reportRoute, toast } from '@/lib/state'
+import { chatContext, reportLoadError, reportRoute, toast } from '@/lib/state'
 import { useMeta, usePeriod } from '@/lib/meta'
 
 // SCR-PAT-001 불량 패턴 · 주요 원인 분석
@@ -76,6 +76,9 @@ const detailLoading = ref(false)
 watch(
   [selectedId, from, to],
   async ([id]) => {
+    chatContext.patternId = id || null
+    chatContext.patternFrom = from.value || null
+    chatContext.patternTo = to.value || null
     // 이전 패턴 내용을 그대로 둔 채 새 내용만 갈아 끼운다 (빈 화면으로 깜빡이며 높이가 흔들리지 않게)
     const seq = ++detailSeq
     detailLoading.value = true
@@ -87,6 +90,12 @@ watch(
   },
   { immediate: true },
 )
+
+onBeforeUnmount(() => {
+  chatContext.patternId = null
+  chatContext.patternFrom = null
+  chatContext.patternTo = null
+})
 
 function applyProduct() {
   const q = { ...route.query, product: product.value || undefined }

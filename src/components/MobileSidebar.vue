@@ -122,7 +122,10 @@ function applyOpenState(isOpen) {
   if (isOpen) {
     labelSprings.forEach((l, i) => {
       after(0.06 + i * 0.04, () => {
-        if (props.open) l.s.t = 1
+        if (props.open) {
+          l.s.t = 1
+          wake()
+        }
       })
     })
   } else {
@@ -130,6 +133,7 @@ function applyOpenState(isOpen) {
       l.s.t = 0
     })
   }
+  wake()
 }
 
 watch(
@@ -147,7 +151,10 @@ watch(
 
 watch(
   () => props.activeTab,
-  () => nextTick(() => updateHighlight()),
+  () => nextTick(() => {
+    updateHighlight()
+    wake()
+  }),
 )
 
 watch(
@@ -155,11 +162,24 @@ watch(
   () => nextTick(() => {
     syncLabelSprings()
     updateHighlight()
+    wake()
   }),
 )
 
 let rafId = 0
 let last = 0
+let running = false
+
+function isSettled(s, eps = 0.05) {
+  return Math.abs(s.v) < eps && Math.abs(s.x - s.t) < eps
+}
+
+function wake() {
+  if (running) return
+  running = true
+  last = performance.now()
+  rafId = requestAnimationFrame(loop)
+}
 
 function loop(now) {
   const dt = Math.min((now - last) / 1000, 1 / 30)
@@ -206,6 +226,19 @@ function loop(now) {
     l.el.style.transform = `translateX(${((1 - o) * -10).toFixed(2)}px)`
   }
 
+  const allDone =
+    timers.length === 0 &&
+    isSettled(W, 0.2) &&
+    isSettled(R, 0.01) &&
+    isSettled(Y, 0.2) &&
+    labelSprings.every((l) => isSettled(l.s, 0.01))
+
+  if (allDone) {
+    running = false
+    rafId = 0
+    return
+  }
+
   rafId = requestAnimationFrame(loop)
 }
 
@@ -213,13 +246,13 @@ onMounted(() => {
   nextTick(() => {
     syncLabelSprings()
     updateHighlight(true)
-    last = performance.now()
-    rafId = requestAnimationFrame(loop)
+    if (props.open) wake()
   })
 })
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(rafId)
+  running = false
   clearTimers()
 })
 
@@ -254,7 +287,7 @@ function pickThread(item) {
   <!-- 좌측 스프링 사이드바 드로어 (DesignBookmark Sidebar Collapse) -->
   <aside
     ref="sideEl"
-    class="fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden rounded-r-[24px] border-r border-white/12 bg-[#090c18]/94 text-[#eef0f6] shadow-[0_24px_60px_rgba(0,0,0,0.72)] backdrop-blur-2xl"
+    class="fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden rounded-r-[24px] border-r border-white/12 bg-[#090c18]/[0.97] text-[#eef0f6] shadow-[0_24px_60px_rgba(0,0,0,0.72)]"
     style="width: 0px; opacity: 0; pointer-events: none"
     aria-label="모바일 탐색 메뉴"
   >

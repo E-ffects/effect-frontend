@@ -98,9 +98,13 @@ function pick(i) {
   const targetPts = normalizePts(r.pts)
   pts.forEach((p, k) => {
     after(k * 0.03, () => {
-      if (activeIdx.value === i) p.t = targetPts[k]
+      if (activeIdx.value === i) {
+        p.t = targetPts[k]
+        wake()
+      }
     })
   })
+  wake()
   emit('change', i)
 }
 
@@ -114,6 +118,18 @@ watch(
 
 let rafId = 0
 let last = 0
+let running = false
+
+function isSettled(s, eps = 0.01) {
+  return Math.abs(s.v) < eps && Math.abs(s.x - s.t) < eps
+}
+
+function wake() {
+  if (running) return
+  running = true
+  last = performance.now()
+  rafId = requestAnimationFrame(loop)
+}
 
 function loop(now) {
   const dt = Math.min((now - last) / 1000, 1 / 30)
@@ -172,19 +188,32 @@ function loop(now) {
     pillEl.value.style.width = `${pw.x.toFixed(2)}px`
   }
 
+  const allDone =
+    timers.length === 0 &&
+    pts.every((p) => isSettled(p, 0.005)) &&
+    isSettled(val, 0.05) &&
+    isSettled(dv, 0.05) &&
+    isSettled(px, 0.1) &&
+    isSettled(pw, 0.1)
+
+  if (allDone) {
+    running = false
+    rafId = 0
+    return
+  }
+
   rafId = requestAnimationFrame(loop)
 }
 
 onMounted(() => {
-  last = performance.now()
   requestAnimationFrame(() => {
     pick(Math.min(props.initialIndex, Math.max(0, props.ranges.length - 1)))
-    rafId = requestAnimationFrame(loop)
   })
 })
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(rafId)
+  running = false
   timers.length = 0
 })
 
@@ -194,7 +223,7 @@ function setBtnRef(el, idx) {
 </script>
 
 <template>
-  <div class="rounded-[24px] border border-white/12 bg-[#0b0f1f]/82 p-[18px] shadow-[0_14px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+  <div class="rounded-[24px] border border-white/12 bg-[#0b0f1f]/94 p-[18px] shadow-[0_14px_40px_rgba(0,0,0,0.45)]">
     <div class="flex items-start justify-between gap-2">
       <div>
         <p class="text-[12.5px] leading-[18px] text-[#b9becf]">{{ label }}</p>

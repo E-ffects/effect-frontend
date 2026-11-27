@@ -335,7 +335,7 @@ const suspectColor = (region) => (regionRank.value[region] !== undefined ? RANK[
       <!-- 생산 라인 19공정 (compact면 단면 옆에) -->
       <div :class="compact ? 'self-center' : 'mt-1 md:col-span-2'">
         <p class="mb-2 text-xs font-semibold text-muted-foreground">생산 라인<template v-if="r.trace_summary?.lot_id"> · Lot {{ r.trace_summary.lot_id }}</template></p>
-        <ol class="grid grid-cols-5 gap-1.5" :class="compact ? '' : 'sm:grid-cols-10'" aria-label="생산 공정 19단계">
+        <ol class="grid grid-cols-3 gap-1.5 sm:grid-cols-5" :class="compact ? '' : 'xl:grid-cols-10'" aria-label="생산 공정 19단계">
           <li
             v-for="[id, name] in PROCESSES" :key="id"
             class="relative rounded-md border px-1 py-1.5 text-center text-[11px] leading-tight"

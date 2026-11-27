@@ -210,26 +210,26 @@ const labelOf = (key) => ALL_COLUMNS.find((c) => c.key === key)?.label || key
 <template>
   <PageHead :crumb="false" title="RMA 사례 조회" description="PCB 반품 사례의 검색, 분석, 처리 이력을 확인하세요." />
 
-  <form class="mb-3 grid grid-cols-9 gap-2 rounded-[14px] border bg-card p-4" @submit.prevent="search" @keydown.enter.prevent="search">
-    <div class="col-span-6 mb-1 flex items-center gap-2">
-      <label class="relative min-w-0 flex-1">
+  <form class="mb-3 space-y-2.5 rounded-[14px] border bg-card p-4" @submit.prevent="search" @keydown.enter.prevent="search">
+    <div class="flex flex-wrap items-center gap-2">
+      <label class="relative min-w-[200px] flex-1">
         <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input v-model="draft.q" type="search" placeholder="RMA ID, 고객사, 제품 또는 불량 유형" aria-label="RMA 통합 검색" class="h-9 w-full rounded-lg border bg-card pl-9 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40" />
       </label>
       <Button type="submit" class="shrink-0"><Search class="size-4" />검색</Button>
+      <Button type="button" variant="outline" class="shrink-0" @click="reset"><RotateCcw class="size-4" />초기화</Button>
+      <Button type="button" variant="outline" class="shrink-0" :loading="exporting" :disabled="!data?.total" @click="exportCsv"><Download class="size-4" />내보내기</Button>
     </div>
-    <div class="col-span-3 mb-1 flex items-center justify-end gap-2">
-      <Button type="button" variant="outline" @click="reset"><RotateCcw class="size-4" />초기화</Button>
-      <Button type="button" variant="outline" :loading="exporting" :disabled="!data?.total" @click="exportCsv"><Download class="size-4" />내보내기</Button>
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+      <Select v-model="draft.product" placeholder="제품 전체" :options="(meta?.products || []).map((p) => ({ value: p.part_no, label: p.part_no }))" />
+      <Select v-model="draft.classification" placeholder="분류 상태 전체" :options="toOptions(CLASSIFICATION)" />
+      <Select v-model="draft.status" placeholder="처리 상태 전체" :options="toOptions(CS_STATUS)" />
+      <template v-if="quality">
+        <Select v-model="draft.severity" placeholder="심각도 전체" :options="SEVERITIES" />
+        <Select v-model="draft.recurrence" placeholder="재발 판정 전체" :options="toOptions(RECURRENCE)" />
+      </template>
+      <DateRange :class="quality ? 'sm:col-span-2 md:col-span-1 xl:col-span-1' : 'sm:col-span-2 md:col-span-3'" block clearable align="right" placeholder="접수 기간 전체" :max-days="Infinity" :from="draft.from" :to="draft.to" @apply="applyPeriod" />
     </div>
-    <Select v-model="draft.product" placeholder="제품 전체" :options="(meta?.products || []).map((p) => ({ value: p.part_no, label: p.part_no }))" />
-    <Select v-model="draft.classification" placeholder="분류 상태 전체" :options="toOptions(CLASSIFICATION)" />
-    <Select v-model="draft.status" placeholder="처리 상태 전체" :options="toOptions(CS_STATUS)" />
-    <template v-if="quality">
-      <Select v-model="draft.severity" placeholder="심각도 전체" :options="SEVERITIES" />
-      <Select v-model="draft.recurrence" placeholder="재발 판정 전체" :options="toOptions(RECURRENCE)" />
-    </template>
-    <DateRange :class="quality ? 'col-span-4' : 'col-span-6'" block clearable align="right" placeholder="접수 기간 전체" :max-days="Infinity" :from="draft.from" :to="draft.to" @apply="applyPeriod" />
   </form>
 
   <!-- 불량 유형(대분류) 알약 탭: 선택된 것만 진한 테두리 (SK AX Use Case 분류 탭 참고) -->

@@ -121,17 +121,19 @@ function select(id) {
 
   <!-- 순위표와 근거 RMA는 위아래 끝을 맞춘다: 높이는 순위표 내용이 정하고(최소 460px · 최대 표 860px),
        근거 박스는 그 높이에 맞춰 안에서 스크롤 → 제품 필터로 행이 줄어도 표 아래에 빈칸이 생기지 않는다 -->
-  <div class="grid grid-cols-3 gap-4">
-    <Card class="col-span-2 min-h-[460px]" title="반복 불량 패턴 순위" :description="list ? `행을 누르면 오른쪽 근거가 갱신됩니다 (${list.patterns.length}개 패턴)` : '행을 누르면 오른쪽 근거가 갱신됩니다'" :padded="false">
+  <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+    <Card class="min-h-[420px] min-w-0 xl:col-span-2" title="반복 불량 패턴 순위" :description="list ? `행을 누르면 오른쪽 근거가 갱신됩니다 (${list.patterns.length}개 패턴)` : '행을 누르면 오른쪽 근거가 갱신됩니다'" :padded="false">
       <template #actions>
-        <Select v-model="product" size="sm" placeholder="전체 PCB 제품" :options="(meta?.products || []).map((p) => ({ value: p.code, label: `${p.code} ${p.name}` }))" @update:model-value="applyProduct" />
-        <DateRange :from="from" :to="to" @apply="apply" />
+        <div class="flex flex-wrap items-center gap-2">
+          <Select v-model="product" size="sm" placeholder="전체 PCB 제품" :options="(meta?.products || []).map((p) => ({ value: p.code, label: `${p.code} ${p.name}` }))" @update:model-value="applyProduct" />
+          <DateRange :from="from" :to="to" @apply="apply" />
+        </div>
       </template>
-      <div class="px-5 pb-4 pt-3">
+      <div class="px-4 pb-4 pt-3 sm:px-5">
         <Skeleton v-if="!list" class="h-64" />
         <p v-else-if="!list.patterns.length" class="py-16 text-center text-sm text-muted-foreground">선택한 조건에 반복 불량 패턴이 없습니다</p>
-        <div v-else class="max-h-[860px] overflow-y-auto">
-        <table class="w-full text-sm">
+        <div v-else class="max-h-[860px] overflow-x-auto overflow-y-auto">
+        <table class="w-full min-w-[600px] text-sm">
           <thead class="sticky top-0 z-10 bg-card text-xs text-muted-foreground">
             <tr><th class="py-2 text-left font-medium">순위</th><th class="text-left font-medium">패턴 ID</th><th class="text-left font-medium">제품</th><th class="text-left font-medium">불량 유형</th><th class="text-left font-medium">심각도</th><th class="text-right font-medium">발생</th><th class="text-right font-medium">점수</th><th class="pl-4 text-left font-medium">주요 원인</th></tr>
           </thead>
@@ -152,8 +154,8 @@ function select(id) {
       </div>
     </Card>
 
-    <div class="relative min-h-[460px]">
-      <Card class="absolute inset-0" title="선택 패턴 근거 RMA">
+    <div class="relative min-w-0 xl:min-h-[460px]">
+      <Card class="xl:absolute xl:inset-0" title="선택 패턴 근거 RMA">
         <template #actions>
           <Button variant="outline" size="xs" :disabled="!detail" :loading="creatingReport" @click="createPatternReport"><FileText class="size-3" />보고서 생성</Button>
         </template>
@@ -166,11 +168,11 @@ function select(id) {
           </div>
 
           <!-- 핵심 수치 -->
-          <dl class="grid grid-cols-4 divide-x overflow-hidden rounded-xl border bg-muted/40 text-center">
-            <div class="px-2 py-3"><dt class="text-xs text-muted-foreground">심각도</dt><dd class="mt-1.5"><Badge :tone="GRADE_TONE[detail.investigation_grade] || 'outline'" class="text-[13px]">{{ detail.investigation_grade }}</Badge></dd></div>
-            <div class="px-2 py-3"><dt class="text-xs text-muted-foreground">우선순위</dt><dd class="mt-1 text-[18px] font-bold tabular">{{ detail.priority_rank }}<small class="ml-0.5 text-xs font-medium text-muted-foreground">위</small></dd></div>
-            <div class="px-2 py-3"><dt class="text-xs text-muted-foreground">미해결</dt><dd class="mt-1 text-[18px] font-bold tabular" :class="detail.unresolved ? 'text-sk-orange' : ''">{{ detail.unresolved }}<small class="ml-0.5 text-xs font-medium text-muted-foreground">건</small></dd></div>
-            <div class="px-2 py-3"><dt class="text-xs text-muted-foreground">가정 단가 기반 추정 손실</dt><dd class="mt-1 text-[18px] font-bold tabular">{{ fmtWon(detail.loss) }}</dd></div>
+          <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border text-center sm:grid-cols-4">
+            <div class="bg-muted/40 px-2 py-3"><dt class="text-xs text-muted-foreground">심각도</dt><dd class="mt-1.5"><Badge :tone="GRADE_TONE[detail.investigation_grade] || 'outline'" class="text-[13px]">{{ detail.investigation_grade }}</Badge></dd></div>
+            <div class="bg-muted/40 px-2 py-3"><dt class="text-xs text-muted-foreground">우선순위</dt><dd class="mt-1 text-[18px] font-bold tabular">{{ detail.priority_rank }}<small class="ml-0.5 text-xs font-medium text-muted-foreground">위</small></dd></div>
+            <div class="bg-muted/40 px-2 py-3"><dt class="text-xs text-muted-foreground">미해결</dt><dd class="mt-1 text-[18px] font-bold tabular" :class="detail.unresolved ? 'text-sk-orange' : ''">{{ detail.unresolved }}<small class="ml-0.5 text-xs font-medium text-muted-foreground">건</small></dd></div>
+            <div class="bg-muted/40 px-2 py-3"><dt class="text-xs text-muted-foreground">가정 단가 기반 추정 손실</dt><dd class="mt-1 text-[18px] font-bold tabular">{{ fmtWon(detail.loss) }}</dd></div>
           </dl>
 
           <!-- 원인 -->
@@ -231,7 +233,7 @@ function select(id) {
                 <span v-for="(cls, sev) in SEV_DOT" :key="sev" class="flex items-center gap-1"><i :class="cls" class="size-2 rounded-full" />{{ sev === '판정 보류' ? '보류' : sev }}</span>
               </span>
             </div>
-            <div class="grid max-h-52 grid-cols-3 gap-1.5 overflow-y-auto">
+            <div class="grid max-h-52 grid-cols-2 gap-1.5 overflow-y-auto sm:grid-cols-3">
               <button
                 v-for="e in detail.evidence"
                 :key="e.rma_id"

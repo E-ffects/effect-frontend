@@ -33,7 +33,7 @@ async function submit() {
       method: 'POST',
       body: { name: form.value.name.trim(), username: form.value.username.trim(), password: form.value.password, role: form.value.role },
     })
-    toast({ title: '가입이 완료되었습니다', tone: 'green' })
+    toast({ title: '가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.', tone: 'green', duration: 6000 })
     router.push('/login')
   } catch (e) {
     error.value = e.status >= 500 ? '잠시 후 다시 시도하세요' : e.message

@@ -197,13 +197,13 @@ const csResult = computed(() => analysis.value?.result)
 
     <div class="grid grid-cols-12 items-start gap-4">
       <!-- 넣은 것 -->
-      <div class="col-span-12 lg:col-span-4">
+      <div class="col-span-12 min-w-0 xl:col-span-4">
         <h2 class="mb-2.5 text-[17px] font-bold">입력</h2>
         <CaseInput :rma="rma" :stages="stages" :attachments="attachments" @changed="refresh" />
       </div>
 
       <!-- 나온 것 -->
-      <div class="col-span-12 lg:col-span-8">
+      <div class="col-span-12 min-w-0 xl:col-span-8">
         <h2 class="mb-2.5 text-[17px] font-bold">결과</h2>
         <!-- 품질관리자: 병목 1~4 산출물 + 원인 판정 -->
         <template v-if="quality">

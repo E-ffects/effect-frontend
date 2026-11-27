@@ -114,10 +114,10 @@ function scrollToRepeat() {
 
     <template #priority>
       <Card :title="titles.priority" :padded="false">
-        <div class="px-5 pb-4 pt-3">
+        <div class="overflow-x-auto px-5 pb-4 pt-3">
           <Skeleton v-if="!data" class="h-48" />
           <p v-else-if="!data.priority.length" class="py-10 text-center text-sm text-muted-foreground">선택한 기간에 등록된 RMA가 없습니다</p>
-          <table v-else class="w-full text-left text-sm [&_td]:pr-4 [&_th]:pr-4">
+          <table v-else class="w-full min-w-[680px] text-left text-sm [&_td]:pr-4 [&_th]:pr-4">
             <thead class="text-xs text-muted-foreground">
               <tr>
                 <th class="py-2 text-left font-medium">순위</th><th class="text-left font-medium">조사 / 제품</th><th class="text-left font-medium">불량 유형</th>

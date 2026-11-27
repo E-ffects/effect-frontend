@@ -5,20 +5,22 @@ import {
   ArrowUp,
   Bell,
   Bot,
+  Check,
   ChevronRight,
   ClipboardCheck,
   FileSearch,
+  FileText,
   Layers,
   PanelLeft,
   Search,
+  Share2,
   Sparkles,
   Star,
   Wrench,
 } from 'lucide-vue-next'
-import FluidBg from '@/components/FluidBg.vue'
 import MobileBriefing from '@/components/MobileBriefing.vue'
+import MobileHandoffSheet from '@/components/MobileHandoffSheet.vue'
 import MobileSidebar from '@/components/MobileSidebar.vue'
-import SiriOrb from '@/components/motion/SiriOrb.vue'
 import { api, fmtDate, timeAgo } from '@/lib/api'
 import { useMeta } from '@/lib/meta'
 import { auth, clearSession } from '@/lib/state'
@@ -76,6 +78,17 @@ const actionLoading = ref(false)
 const expandedAlertId = ref(null)
 const highlightedActionId = ref(null)
 
+// AI 보고서 (단건 RMA | 불량 패턴)
+const reportSubTab = ref('rma') // 'rma' | 'pattern'
+const rmaReports = ref([])
+const patternReports = ref([])
+const reportQuery = ref('')
+const reportLoading = ref(false)
+const expandedReportId = ref(null)
+const reportDetailCache = ref({})
+const handoffOpen = ref(false)
+const handoffItem = ref(null)
+
 const ACTION_ROLE = { OCCURRENCE: '발생 대책', ESCAPE: '유출 대책', PREVENTION: '예방 대책', HORIZONTAL: '수평 전개' }
 const ACTION_STATUS = { IMPLEMENTING: '시행 중', MONITORING: '효과 확인 중', EFFECTIVE: '효과있음', NOT_EFFECTIVE: '효과없음' }
 
@@ -88,7 +101,24 @@ const tabTitle = computed(() => {
   if (activeTab.value === 'patterns') return '불량 패턴 분석'
   if (activeTab.value === 'approvals') return '원인 판정'
   if (activeTab.value === 'alerts') return '알림 및 재발'
+  if (activeTab.value === 'reports') return 'AI 보고서'
   return 'E!ffect AI'
+})
+
+const filteredRmaReports = computed(() => {
+  const q = reportQuery.value.trim().toLowerCase()
+  if (!q) return rmaReports.value
+  return rmaReports.value.filter((r) =>
+    [r.rma_id, r.title, r.part_no, r.defect_type, r.customer_name].filter(Boolean).join(' ').toLowerCase().includes(q),
+  )
+})
+
+const filteredPatternReports = computed(() => {
+  const q = reportQuery.value.trim().toLowerCase()
+  if (!q) return patternReports.value
+  return patternReports.value.filter((r) =>
+    [r.pattern_id, r.title, r.product, r.defect_type].filter(Boolean).join(' ').toLowerCase().includes(q),
+  )
 })
 
 const filteredPatterns = computed(() => {
@@ -450,6 +480,53 @@ function alertToneClass(type) {
   return 'border-cyan-400/30 bg-cyan-500/15 text-cyan-200'
 }
 
+async function loadReports() {
+  reportLoading.value = true
+  try {
+    const [rmaRes, patRes] = await Promise.all([
+      api('/reports', { query: { size: 30 } }).catch(() => null),
+      api('/pattern-reports', { query: { size: 30 } }).catch(() => null),
+    ])
+    rmaReports.value = rmaRes?.items || []
+    patternReports.value = patRes?.items || []
+  } finally {
+    reportLoading.value = false
+  }
+}
+
+async function toggleReportDetail(r) {
+  const key = r.rma_id || `PAT-${r.report_id}`
+  if (expandedReportId.value === key) {
+    expandedReportId.value = null
+    return
+  }
+  expandedReportId.value = key
+  if (r.rma_id && !reportDetailCache.value[key]) {
+    try {
+      const detail = await api(`/reports/${r.rma_id}`)
+      reportDetailCache.value = { ...reportDetailCache.value, [key]: detail }
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function openHandoff(item, kind) {
+  const key = kind === 'rma' ? item.rma_id : `PAT-${item.report_id || item.pattern_id}`
+  const detail = reportDetailCache.value[key]
+  handoffItem.value = {
+    kind,
+    id: kind === 'rma' ? item.rma_id : item.pattern_id,
+    title: item.title,
+    partNo: item.reported_part_no || item.part_no || item.product,
+    defectType: item.minor_name || item.defect_type,
+    customerName: item.customer_name,
+    count: item.total_count ?? item.count,
+    summary: detail?.executive_summary || detail?.summary || item.summary || item.title || '',
+  }
+  handoffOpen.value = true
+}
+
 watch(activeTab, (tab) => {
   if (tab === 'rmas' && !rmaList.value.length) loadRmas()
   if (tab === 'patterns' && !patternList.value.length) loadPatterns()
@@ -458,6 +535,7 @@ watch(activeTab, (tab) => {
     if (!alertList.value.length) loadAlerts()
     if (!actionList.value.length) loadActions()
   }
+  if (tab === 'reports' && !rmaReports.value.length && !patternReports.value.length) loadReports()
 })
 
 function handleSelectTab(tab) {
@@ -488,11 +566,18 @@ onMounted(() => {
 
 <template>
   <div
-    class="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-[#04050c] text-[#eef0f6]"
+    class="fixed inset-0 flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#04050c] text-[#eef0f6]"
     style="font-family: 'Onest', 'Pretendard Variable', Pretendard, -apple-system, sans-serif"
   >
-    <!-- Flowstate WebGL 유체 배경 -->
-    <FluidBg :dimmed="activeTab !== 'chat' || messages.length > 0" />
+    <!-- 깔끔한 정적 다크 배경 (WebGL 연기 제거 → 초경량 60fps) -->
+    <div
+      class="pointer-events-none fixed inset-0 z-0"
+      style="background: radial-gradient(90% 55% at 50% 0%, rgba(56, 189, 248, 0.11), transparent 65%), #04050c"
+      aria-hidden="true"
+    />
+
+    <!-- 부서별 맞춤 핸드오프 바텀시트 -->
+    <MobileHandoffSheet :open="handoffOpen" :item="handoffItem" @close="handoffOpen = false" />
 
     <!-- 좌측 ChatGPT 스타일 스프링 사이드바 드로어 -->
     <MobileSidebar
@@ -542,7 +627,7 @@ onMounted(() => {
     <!-- ===================== 1. AI 채팅 탭 ===================== -->
     <template v-if="activeTab === 'chat'">
       <!-- 범용 + RMA / 불량 패턴 선택 바 -->
-      <div class="relative z-20 flex shrink-0 items-center gap-1.5 overflow-x-auto px-4 pb-2.5 [scrollbar-width:none]">
+      <div class="relative z-20 flex shrink-0 touch-pan-x items-center gap-1.5 overflow-x-auto px-4 pb-2.5 [scrollbar-width:none]">
         <button
           class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition"
           :class="
@@ -570,14 +655,23 @@ onMounted(() => {
       </div>
 
       <main ref="scroller" class="relative z-10 flex-1 overflow-y-auto px-4 pb-4">
-        <!-- 대화 전: SmoothUI Siri Orb + Flowstate 히어로 -->
+        <!-- 대화 전: mobile.mp4 오브 영상 + Flowstate 히어로 -->
         <div v-if="!messages.length" class="mx-auto flex min-h-full max-w-md flex-col items-center justify-center py-5 text-center">
           <div
-            class="mb-4 transition-all duration-700"
+            class="mb-4 size-[124px] overflow-hidden rounded-full border border-white/15 bg-[#070a14] shadow-[0_0_38px_rgba(56,189,248,0.22)] transition-all duration-700"
             :class="revealed ? 'scale-100 opacity-100' : 'scale-90 opacity-0'"
             style="transition-delay: 120ms"
           >
-            <SiriOrb :size="108" :state="busy ? 'thinking' : 'idle'" />
+            <video
+              src="/mobile.mp4"
+              autoplay
+              loop
+              muted
+              playsinline
+              preload="auto"
+              class="size-full object-cover"
+              aria-hidden="true"
+            />
           </div>
 
           <p
@@ -700,7 +794,7 @@ onMounted(() => {
             v-model="input"
             :disabled="busy"
             :placeholder="activeScope?.type === 'GENERAL' ? '무엇이든 물어보세요…' : `${activeScope.label}에 대해 물어보세요…`"
-            class="h-full min-w-0 flex-1 bg-transparent text-[14.5px] text-[#eef0f6] placeholder:text-[#b9becf]/80 focus:outline-none"
+            class="h-full min-w-0 flex-1 bg-transparent text-[16px] text-[#eef0f6] placeholder:text-[#b9becf]/80 focus:outline-none"
           />
           <button
             type="submit"
@@ -731,7 +825,7 @@ onMounted(() => {
           <input
             v-model="rmaQuery"
             placeholder="RMA 번호, 품번, 고객사 검색…"
-            class="h-full min-w-0 flex-1 bg-transparent text-[13.5px] text-white placeholder:text-[#b9becf]/70 focus:outline-none"
+            class="h-full min-w-0 flex-1 bg-transparent text-[16px] text-white placeholder:text-[#b9becf]/70 focus:outline-none"
           />
         </form>
 
@@ -755,14 +849,22 @@ onMounted(() => {
             <p class="mt-1.5 text-[12.5px] text-[#b9becf]">
               {{ r.reported_part_no || '-' }} · {{ r.minor_name || r.defect_type || '유형 미지정' }}
             </p>
-            <div class="mt-3 flex items-center justify-between">
-              <span class="text-[11px] text-[#b9becf]/65">{{ r.customer_name || '' }}</span>
-              <button
-                class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
-                @click="openChatFor('RMA', r.rma_id, r.rma_id)"
-              >
-                <Sparkles class="size-3" />AI 분석 채팅
-              </button>
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <span class="truncate text-[11px] text-[#b9becf]/65">{{ r.customer_name || '' }}</span>
+              <div class="flex shrink-0 items-center gap-1.5">
+                <button
+                  class="inline-flex items-center gap-1 rounded-full border border-white/16 bg-white/[0.07] px-2.5 py-1 text-[11.5px] font-medium text-[#eef0f6] transition active:scale-95"
+                  @click="openHandoff(r, 'rma')"
+                >
+                  <Share2 class="size-3" />부서 공유
+                </button>
+                <button
+                  class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
+                  @click="openChatFor('RMA', r.rma_id, r.rma_id)"
+                >
+                  <Sparkles class="size-3" />AI 분석
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -777,7 +879,7 @@ onMounted(() => {
           <input
             v-model="patternQuery"
             placeholder="패턴 ID, 제품, 불량 유형 검색…"
-            class="h-full min-w-0 flex-1 bg-transparent text-[13.5px] text-white placeholder:text-[#b9becf]/70 focus:outline-none"
+            class="h-full min-w-0 flex-1 bg-transparent text-[16px] text-white placeholder:text-[#b9becf]/70 focus:outline-none"
           />
           <span v-if="patternList.length" class="shrink-0 text-[11px] text-[#b9becf]/70">
             {{ filteredPatterns.length }}건
@@ -974,6 +1076,127 @@ onMounted(() => {
                   @click="openChatFor('RMA', ac.rma_id, ac.rma_id)"
                 >
                   <Sparkles class="size-3" />AI 분석
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </main>
+
+    <!-- ===================== 6. 모바일 AI 보고서 탭 (단건 RMA | 불량 패턴 + 부서 공유) ===================== -->
+    <main v-else-if="activeTab === 'reports'" class="relative z-10 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pb-6">
+      <div class="mx-auto max-w-xl space-y-3">
+        <!-- 서브탭: 단건 RMA | 불량 패턴 -->
+        <div class="grid grid-cols-2 gap-1.5 rounded-full border border-white/14 bg-white/[0.06] p-1">
+          <button
+            class="rounded-full py-1.5 text-xs font-medium transition"
+            :class="reportSubTab === 'rma' ? 'bg-white text-[#1c1d22]' : 'text-[#b9becf] hover:text-white'"
+            @click="reportSubTab = 'rma'"
+          >
+            단건 RMA ({{ rmaReports.length }})
+          </button>
+          <button
+            class="rounded-full py-1.5 text-xs font-medium transition"
+            :class="reportSubTab === 'pattern' ? 'bg-white text-[#1c1d22]' : 'text-[#b9becf] hover:text-white'"
+            @click="reportSubTab = 'pattern'"
+          >
+            불량 패턴 ({{ patternReports.length }})
+          </button>
+        </div>
+
+        <!-- 검색 바 (16px: iOS 자동 확대 방지) -->
+        <div class="flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3.5">
+          <Search class="size-4 shrink-0 text-[#b9becf]" />
+          <input
+            v-model="reportQuery"
+            placeholder="RMA·패턴 번호, 품번, 불량 유형 검색…"
+            class="h-full min-w-0 flex-1 bg-transparent text-[16px] text-white placeholder:text-[#b9becf]/70 focus:outline-none"
+          />
+        </div>
+
+        <div v-if="reportLoading" class="py-10 text-center text-xs text-[#b9becf]">보고서를 불러오는 중…</div>
+
+        <!-- 6-A. 단건 RMA 보고서 -->
+        <template v-else-if="reportSubTab === 'rma'">
+          <div v-if="!filteredRmaReports.length" class="py-10 text-center text-xs text-[#b9becf]">생성된 RMA 보고서가 없습니다.</div>
+          <div v-else class="space-y-2.5">
+            <div
+              v-for="r in filteredRmaReports"
+              :key="r.rma_id"
+              class="cursor-pointer rounded-2xl border bg-[#0b0f1f]/90 p-3.5 transition"
+              :class="expandedReportId === r.rma_id ? 'border-cyan-300/45' : 'border-white/12'"
+              @click="toggleReportDetail(r)"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2">
+                  <FileText class="size-4 shrink-0 text-cyan-300" />
+                  <span class="truncate text-[14px] font-semibold text-white">{{ r.rma_id }}</span>
+                </div>
+                <span class="shrink-0 text-[11px] text-[#b9becf]/70">{{ fmtDate(r.updated_at || r.created_at) }}</span>
+              </div>
+              <p class="mt-1.5 text-[12.5px] text-[#b9becf]">
+                {{ r.title || `${r.part_no || ''} · ${r.defect_type || 'AI 분석 보고서'}` }}
+              </p>
+
+              <!-- 펼침 요약 -->
+              <div
+                v-if="expandedReportId === r.rma_id"
+                class="mt-2.5 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-[12.5px] leading-relaxed text-[#d7dce9]"
+              >
+                {{ reportDetailCache[r.rma_id]?.executive_summary || reportDetailCache[r.rma_id]?.summary || r.summary || '상세 요약을 불러오는 중…' }}
+              </div>
+
+              <!-- 하단 액션: 타 부서 맞춤 핸드오프 + AI 질문 -->
+              <div class="mt-3 flex items-center justify-end gap-2 border-t border-white/8 pt-2.5">
+                <button
+                  class="inline-flex items-center gap-1 rounded-full border border-white/16 bg-white/[0.07] px-3 py-1 text-[11.5px] font-medium text-[#eef0f6] transition active:scale-95"
+                  @click.stop="openHandoff(r, 'rma')"
+                >
+                  <Share2 class="size-3" />부서 공유
+                </button>
+                <button
+                  class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
+                  @click.stop="openChatFor('RMA', r.rma_id, r.rma_id)"
+                >
+                  <Sparkles class="size-3" />AI 질문
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- 6-B. 불량 패턴 보고서 -->
+        <template v-else>
+          <div v-if="!filteredPatternReports.length" class="py-10 text-center text-xs text-[#b9becf]">생성된 패턴 보고서가 없습니다.</div>
+          <div v-else class="space-y-2.5">
+            <div
+              v-for="p in filteredPatternReports"
+              :key="p.report_id || p.pattern_id"
+              class="rounded-2xl border border-white/12 bg-[#0b0f1f]/90 p-3.5"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2">
+                  <Layers class="size-4 shrink-0 text-violet-300" />
+                  <span class="truncate text-[14px] font-semibold text-white">패턴 {{ p.pattern_id }}</span>
+                </div>
+                <span class="shrink-0 text-[11px] text-[#b9becf]/70">{{ fmtDate(p.created_at || p.updated_at) }}</span>
+              </div>
+              <p class="mt-1.5 text-[12.5px] text-[#b9becf]">
+                {{ p.title || `${p.product || ''} · ${p.defect_type || ''}` }}
+              </p>
+              <div class="mt-3 flex items-center justify-end gap-2 border-t border-white/8 pt-2.5">
+                <button
+                  class="inline-flex items-center gap-1 rounded-full border border-white/16 bg-white/[0.07] px-3 py-1 text-[11.5px] font-medium text-[#eef0f6] transition active:scale-95"
+                  @click="openHandoff(p, 'pattern')"
+                >
+                  <Share2 class="size-3" />부서 공유
+                </button>
+                <button
+                  class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
+                  @click="openChatFor('PATTERN', p.pattern_id, `패턴 ${p.pattern_id}`)"
+                >
+                  <Sparkles class="size-3" />AI 질문
                 </button>
               </div>
             </div>

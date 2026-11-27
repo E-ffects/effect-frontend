@@ -51,20 +51,22 @@ const tab = ref('cause')
 
 <template>
   <div class="grid gap-4">
-    <!-- 회색 트랙 위 세그먼트 탭: 선택된 탭만 흰 카드로 떠 보이게 -->
-    <nav v-slide-pill="'seg-pill'" role="tablist" aria-label="분석 결과" class="seg grid grid-cols-5">
-      <button
-        v-for="t in TABS" :key="t.key" role="tab" :aria-selected="tab === t.key"
-        class="seg-item min-w-0 px-3 py-2.5 text-left"
-        @click="tab = t.key"
-      >
-        <span class="flex items-baseline gap-1.5 whitespace-nowrap">
-          <span class="text-sm font-bold">{{ t.label }}</span>
-          <span :class="tab === t.key ? 'text-primary' : ''" class="truncate text-xs font-semibold tabular">{{ t.note }}</span>
-        </span>
-        <span class="mt-0.5 block truncate text-[11px] font-medium opacity-70">{{ t.sub }}</span>
-      </button>
-    </nav>
+    <!-- 회색 트랙 위 세그먼트 탭: 좁은 폭에서는 가로 스크롤로 겹침 방지 -->
+    <div class="overflow-x-auto">
+      <nav v-slide-pill="'seg-pill'" role="tablist" aria-label="분석 결과" class="seg grid min-w-[560px] grid-cols-5">
+        <button
+          v-for="t in TABS" :key="t.key" role="tab" :aria-selected="tab === t.key"
+          class="seg-item min-w-0 px-3 py-2.5 text-left"
+          @click="tab = t.key"
+        >
+          <span class="flex items-baseline gap-1.5 whitespace-nowrap">
+            <span class="text-sm font-bold">{{ t.label }}</span>
+            <span :class="tab === t.key ? 'text-primary' : ''" class="truncate text-xs font-semibold tabular">{{ t.note }}</span>
+          </span>
+          <span class="mt-0.5 block truncate text-[11px] font-medium opacity-70">{{ t.sub }}</span>
+        </button>
+      </nav>
+    </div>
 
     <!-- 원인 분석: 원인 위치(그림만) + 원인 후보 -->
     <CauseLocation v-if="candidates.length && tab === 'cause'" :result="r" compact />

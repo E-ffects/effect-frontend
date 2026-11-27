@@ -143,12 +143,71 @@ const LABEL_CLS = {
   done: 'text-[#5f6673]',
   error: 'text-destructive font-semibold',
 }
+
+// 안 2 오른쪽 패널: 단계별 처리 시간 분포 (완료된 단계 기준, 비중 큰 순)
+const BAR_COLORS = {
+  원인분석: { bar: 'bg-blue-500', text: 'text-blue-700' },
+  CS: { bar: 'bg-violet-500', text: 'text-violet-700' },
+  제조: { bar: 'bg-teal-500', text: 'text-teal-700' },
+  QA: { bar: 'bg-emerald-500', text: 'text-emerald-700' },
+  오케스트레이터: { bar: 'bg-slate-400', text: 'text-slate-600' },
+}
+
+const timingBars = computed(() => {
+  const doneSteps = steps.value.filter((s) => s.status === 'done' && s.traceMs != null)
+  const sum = doneSteps.reduce((a, s) => a + (s.traceMs || 0), 0) || 1
+  return [...doneSteps]
+    .sort((a, b) => (b.traceMs || 0) - (a.traceMs || 0))
+    .slice(0, 5)
+    .map((s) => {
+      const pct = Math.round(((s.traceMs || 0) / sum) * 100)
+      const palette = BAR_COLORS[s.name] || { bar: 'bg-slate-400', text: 'text-slate-600' }
+      return {
+        id: s.id,
+        label: s.name === '원인분석' ? '원인분석' : `${s.name} · ${s.desc.split('·')[0].trim()}`,
+        ms: s.traceMs,
+        pct,
+        barWidth: Math.max(4, pct),
+        ...palette,
+      }
+    })
+})
+
+// 실제 trace action 문구에서 탐색 수치(과거 사례·공정 단계·유사 Lot 등) 동적 추출
+const evidenceMetrics = computed(() => {
+  const joined = steps.value
+    .filter((s) => s.status === 'done' && s.action)
+    .map((s) => s.action)
+    .join(' | ')
+
+  const pickNum = (re) => joined.match(re)?.[1] || null
+  const cases = pickNum(/사례\s*([\d,]+)\s*건/)
+  const procs = pickNum(/공정\s*([\d,]+)\s*단계/)
+  const lots = pickNum(/Lot\s*([\d,]+)\s*개/)
+  const level = joined.match(/분석\s*수준\s*(L\d)/)?.[1] || props.analysis?.analysis_level || null
+
+  const cards = []
+  if (cases) cards.push({ label: '대조 과거 사례', value: `${cases}건`, tone: 'bg-blue-50/80 border-blue-100 text-blue-700' })
+  if (procs) cards.push({ label: '추적 공정', value: `${procs}단계`, tone: 'bg-teal-50/80 border-teal-100 text-teal-700' })
+  if (lots) cards.push({ label: '유사 후보 Lot', value: `${lots}개`, tone: 'bg-violet-50/80 border-violet-100 text-violet-700' })
+  if (cards.length < 3 && level) {
+    cards.push({ label: '분석 수준', value: level, tone: 'bg-emerald-50/80 border-emerald-100 text-emerald-700' })
+  }
+  if (cards.length < 3) {
+    cards.push({
+      label: '진행 단계',
+      value: `${Math.min(logShown.value, N)}/${N}`,
+      tone: 'bg-slate-50 border-slate-200/80 text-slate-700',
+    })
+  }
+  return cards.slice(0, 3)
+})
 </script>
 
 <template>
-  <!-- 위: 7개 에이전트 가로 진행 막대(요약, 늘 보임) / 아래: 단계별 작업 기록 -->
+  <!-- 위: 7개 에이전트 가로 진행 막대(요약, 늘 보임) / 아래: 좌 타임라인 + 우 처리시간·근거 요약 -->
   <AgentStepper :steps="barSteps.map((s) => ({ ...s, time: stepTime(s) }))" :running="barSteps.some((s) => s.status === 'running')" :live="!instant" />
-  <div class="mt-3 max-w-[640px] border-t border-[#eef0f3] pt-3">
+  <div class="mt-3 w-full border-t border-[#eef0f3] pt-3">
     <div class="flex items-center gap-2">
       <button
         type="button"
@@ -179,60 +238,106 @@ const LABEL_CLS = {
     </div>
 
     <div class="fold" :data-open="open">
-      <ol id="agent-steps" aria-label="에이전트 진행 단계">
-        <li v-for="(s, i) in steps" :key="s.id" class="relative flex gap-3 pt-3">
-          <!-- 아이콘 사이 선: 완료되면 위에서부터 채워진다 -->
-          <span v-if="i < steps.length - 1" aria-hidden="true" class="absolute bottom-[-10px] left-[7.5px] top-[32px] w-px overflow-hidden bg-[#e6e8ec]">
-            <span
-              :class="s.status === 'done' ? 'scale-y-100' : 'scale-y-0'"
-              class="block h-full w-full origin-top bg-emerald-500/60 transition-transform duration-500 ease-[var(--ease-out)]"
-            />
-          </span>
+      <div class="grid grid-cols-1 gap-6 pt-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <!-- 좌측: 7단계 실행 타임라인 -->
+        <ol id="agent-steps" aria-label="에이전트 진행 단계">
+          <li v-for="(s, i) in steps" :key="s.id" class="relative flex gap-3 pt-3">
+            <!-- 아이콘 사이 선: 완료되면 위에서부터 채워진다 -->
+            <span v-if="i < steps.length - 1" aria-hidden="true" class="absolute bottom-[-10px] left-[7.5px] top-[32px] w-px overflow-hidden bg-[#e6e8ec]">
+              <span
+                :class="s.status === 'done' ? 'scale-y-100' : 'scale-y-0'"
+                class="block h-full w-full origin-top bg-emerald-500/60 transition-transform duration-500 ease-[var(--ease-out)]"
+              />
+            </span>
 
-          <span class="relative flex size-4 shrink-0 items-center justify-center">
-            <Transition
-              enter-from-class="opacity-0 blur-[2px]"
-              leave-to-class="opacity-0 blur-[2px]"
-              enter-active-class="transition-[opacity,filter] duration-[180ms] ease-[var(--ease-out)]"
-              leave-active-class="transition-[opacity,filter] duration-[180ms] ease-[var(--ease-out)]"
-            >
-              <span :key="s.status" class="absolute inset-0 flex items-center justify-center">
-                <span v-if="s.status === 'pending'" class="size-1.5 rounded-full bg-[#cfd3da]" />
-                <svg v-else-if="s.status === 'running'" aria-hidden="true" class="size-3.5 animate-spin [animation-duration:0.8s]" fill="none" viewBox="0 0 16 16">
-                  <circle cx="8" cy="8" r="6.25" stroke="#e6e8ec" stroke-width="1.5" />
-                  <path d="M8 1.75a6.25 6.25 0 0 1 6.25 6.25" stroke="var(--color-primary)" stroke-linecap="round" stroke-width="1.5" />
-                </svg>
-                <svg v-else-if="s.status === 'done'" aria-hidden="true" class="size-3.5 text-emerald-600" fill="none" viewBox="0 0 16 16">
-                  <path class="draw-check" pathLength="1" d="M3.5 8.5 6.5 11.5 12.5 4.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" />
-                </svg>
-                <svg v-else aria-hidden="true" class="size-3.5 text-destructive" fill="none" viewBox="0 0 16 16">
-                  <path d="M4.5 4.5l7 7m0-7-7 7" stroke="currentColor" stroke-linecap="round" stroke-width="1.75" />
-                </svg>
-              </span>
-            </Transition>
-          </span>
+            <span class="relative flex size-4 shrink-0 items-center justify-center">
+              <Transition
+                enter-from-class="opacity-0 blur-[2px]"
+                leave-to-class="opacity-0 blur-[2px]"
+                enter-active-class="transition-[opacity,filter] duration-[180ms] ease-[var(--ease-out)]"
+                leave-active-class="transition-[opacity,filter] duration-[180ms] ease-[var(--ease-out)]"
+              >
+                <span :key="s.status" class="absolute inset-0 flex items-center justify-center">
+                  <span v-if="s.status === 'pending'" class="size-1.5 rounded-full bg-[#cfd3da]" />
+                  <svg v-else-if="s.status === 'running'" aria-hidden="true" class="size-3.5 animate-spin [animation-duration:0.8s]" fill="none" viewBox="0 0 16 16">
+                    <circle cx="8" cy="8" r="6.25" stroke="#e6e8ec" stroke-width="1.5" />
+                    <path d="M8 1.75a6.25 6.25 0 0 1 6.25 6.25" stroke="var(--color-primary)" stroke-linecap="round" stroke-width="1.5" />
+                  </svg>
+                  <svg v-else-if="s.status === 'done'" aria-hidden="true" class="size-3.5 text-emerald-600" fill="none" viewBox="0 0 16 16">
+                    <path class="draw-check" pathLength="1" d="M3.5 8.5 6.5 11.5 12.5 4.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" />
+                  </svg>
+                  <svg v-else aria-hidden="true" class="size-3.5 text-destructive" fill="none" viewBox="0 0 16 16">
+                    <path d="M4.5 4.5l7 7m0-7-7 7" stroke="currentColor" stroke-linecap="round" stroke-width="1.75" />
+                  </svg>
+                </span>
+              </Transition>
+            </span>
 
-          <div class="-mt-0.5 min-w-0 flex-1">
-            <div class="flex items-baseline gap-2">
-              <p :class="LABEL_CLS[s.status]" class="min-w-0 truncate text-sm transition-colors duration-200">
-                <template v-if="s.status === 'running'">
-                  <span class="sr-only">{{ s.label }}</span>
-                  <span aria-hidden="true"><span v-for="(ch, k) in Array.from(s.label)" :key="k" class="ai-wave whitespace-pre" :style="{ animationDelay: `${k * 0.05}s` }">{{ ch }}</span></span>
-                </template>
-                <template v-else>{{ s.label }}</template>
-              </p>
-              <Transition enter-from-class="opacity-0" enter-active-class="transition-opacity duration-200 ease-[var(--ease-out)]">
-                <span v-if="stepTime(s)" class="ml-auto shrink-0 text-xs text-[#9aa0aa] tabular">{{ stepTime(s) }}</span>
+            <div class="-mt-0.5 min-w-0 flex-1">
+              <div class="flex items-baseline gap-2">
+                <p :class="LABEL_CLS[s.status]" class="min-w-0 truncate text-sm transition-colors duration-200">
+                  <template v-if="s.status === 'running'">
+                    <span class="sr-only">{{ s.label }}</span>
+                    <span aria-hidden="true"><span v-for="(ch, k) in Array.from(s.label)" :key="k" class="ai-wave whitespace-pre" :style="{ animationDelay: `${k * 0.05}s` }">{{ ch }}</span></span>
+                  </template>
+                  <template v-else>{{ s.label }}</template>
+                </p>
+                <Transition enter-from-class="opacity-0" enter-active-class="transition-opacity duration-200 ease-[var(--ease-out)]">
+                  <span v-if="stepTime(s)" class="ml-auto shrink-0 text-xs text-[#9aa0aa] tabular">{{ stepTime(s) }}</span>
+                </Transition>
+              </div>
+              <!-- 완료된 단계: trace의 실제 작업 기록 -->
+              <Transition enter-from-class="opacity-0 -translate-y-2" enter-active-class="transition-[opacity,translate] duration-[280ms] ease-[var(--ease-out)]">
+                <p v-if="s.status === 'done' && s.action" class="mt-0.5 truncate text-[12px] leading-[18px] text-[#8b919c]" :title="s.action">{{ s.action }}</p>
               </Transition>
             </div>
-            <!-- 완료된 단계: trace의 실제 작업 기록 -->
-            <!-- 한 박자 늦게, 위에서 살짝 내려오며 -->
-            <Transition enter-from-class="opacity-0 -translate-y-2" enter-active-class="transition-[opacity,translate] duration-[280ms] ease-[var(--ease-out)]">
-              <p v-if="s.status === 'done' && s.action" class="mt-0.5 truncate text-[12px] leading-[18px] text-[#8b919c]" :title="s.action">{{ s.action }}</p>
-            </Transition>
+          </li>
+        </ol>
+
+        <!-- 우측: 단계별 처리 시간 워터폴 + 탐색 근거 요약 -->
+        <aside class="flex flex-col justify-between gap-4 border-t border-[#eef0f3] pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-2">
+          <div>
+            <div class="mb-2.5 flex items-center justify-between">
+              <p class="text-xs font-semibold text-[#5f6673]">단계별 처리 시간 분포</p>
+              <span v-if="totalMs != null" class="text-[11px] font-medium text-[#9aa0aa] tabular">총 {{ fmtMs(totalMs) }}</span>
+            </div>
+
+            <div v-if="timingBars.length" class="space-y-2.5 rounded-xl border border-[#eef0f3] bg-[#fafbfc] p-3.5">
+              <div v-for="b in timingBars" :key="b.id" class="grid grid-cols-[96px_minmax(0,1fr)_68px] items-center gap-2.5 text-xs">
+                <span class="truncate font-medium text-[#4a505c]" :title="b.label">{{ b.label }}</span>
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-[#e9ecf1]">
+                  <div
+                    :class="b.bar"
+                    class="h-full rounded-full transition-all duration-500 ease-[var(--ease-out)]"
+                    :style="{ width: `${b.barWidth}%` }"
+                  />
+                </div>
+                <span :class="b.text" class="text-right text-[11px] font-semibold tabular">
+                  {{ fmtMs(b.ms) }} <span class="font-normal text-[#9aa0aa]">({{ b.pct }}%)</span>
+                </span>
+              </div>
+            </div>
+            <div v-else class="rounded-xl border border-dashed border-[#e6e8ec] px-3.5 py-6 text-center text-xs text-[#9aa0aa]">
+              에이전트 단계가 완료되면 소요 시간 분포가 표시됩니다
+            </div>
           </div>
-        </li>
-      </ol>
+
+          <div>
+            <p class="mb-2 text-xs font-semibold text-[#5f6673]">에이전트 탐색 근거 요약</p>
+            <div class="grid grid-cols-3 gap-2.5">
+              <div
+                v-for="m in evidenceMetrics"
+                :key="m.label"
+                :class="m.tone"
+                class="rounded-xl border px-3 py-2.5"
+              >
+                <p class="truncate text-[11px] font-medium text-[#6b717d]">{{ m.label }}</p>
+                <p class="mt-1 text-lg font-bold tracking-tight tabular">{{ m.value }}</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
   </div>
 </template>

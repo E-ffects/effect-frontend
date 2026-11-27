@@ -18,10 +18,9 @@ import {
   Star,
   Wrench,
 } from 'lucide-vue-next'
-import FluidBg from '@/components/FluidBg.vue'
 import MobileBriefing from '@/components/MobileBriefing.vue'
+import MobileHandoffSheet from '@/components/MobileHandoffSheet.vue'
 import MobileSidebar from '@/components/MobileSidebar.vue'
-import SiriOrb from '@/components/motion/SiriOrb.vue'
 import { api, fmtDate, timeAgo } from '@/lib/api'
 import { useMeta } from '@/lib/meta'
 import { auth, clearSession } from '@/lib/state'
@@ -87,7 +86,8 @@ const reportQuery = ref('')
 const reportLoading = ref(false)
 const expandedReportId = ref(null)
 const reportDetailCache = ref({})
-const sharedKey = ref(null)
+const handoffOpen = ref(false)
+const handoffItem = ref(null)
 
 const ACTION_ROLE = { OCCURRENCE: '발생 대책', ESCAPE: '유출 대책', PREVENTION: '예방 대책', HORIZONTAL: '수평 전개' }
 const ACTION_STATUS = { IMPLEMENTING: '시행 중', MONITORING: '효과 확인 중', EFFECTIVE: '효과있음', NOT_EFFECTIVE: '효과없음' }
@@ -511,34 +511,20 @@ async function toggleReportDetail(r) {
   }
 }
 
-async function shareReport(item, kind) {
+function openHandoff(item, kind) {
   const key = kind === 'rma' ? item.rma_id : `PAT-${item.report_id || item.pattern_id}`
   const detail = reportDetailCache.value[key]
-  const title =
-    kind === 'rma'
-      ? `[E!ffect QA 보고서] ${item.rma_id} ${item.defect_type || ''}`.trim()
-      : `[E!ffect 패턴 보고서] 패턴 ${item.pattern_id} ${item.defect_type || ''}`.trim()
-  const summary =
-    detail?.executive_summary ||
-    detail?.summary ||
-    item.summary ||
-    item.title ||
-    'E!ffect AI 분석 보고서를 확인해 주세요.'
-  const shareText = `${title}\n\n${summary}\n\n대상: ${kind === 'rma' ? item.rma_id : `패턴 ${item.pattern_id}`}\n링크: ${window.location.origin}/m?${kind === 'rma' ? `rmaId=${item.rma_id}` : `patternId=${item.pattern_id}`}`
-
-  try {
-    if (navigator.share) {
-      await navigator.share({ title, text: shareText })
-    } else if (navigator.clipboard) {
-      await navigator.clipboard.writeText(shareText)
-    }
-    sharedKey.value = key
-    setTimeout(() => {
-      if (sharedKey.value === key) sharedKey.value = null
-    }, 2000)
-  } catch {
-    /* user cancelled share sheet */
+  handoffItem.value = {
+    kind,
+    id: kind === 'rma' ? item.rma_id : item.pattern_id,
+    title: item.title,
+    partNo: item.reported_part_no || item.part_no || item.product,
+    defectType: item.minor_name || item.defect_type,
+    customerName: item.customer_name,
+    count: item.total_count ?? item.count,
+    summary: detail?.executive_summary || detail?.summary || item.summary || item.title || '',
   }
+  handoffOpen.value = true
 }
 
 watch(activeTab, (tab) => {
@@ -583,8 +569,15 @@ onMounted(() => {
     class="fixed inset-0 flex h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#04050c] text-[#eef0f6]"
     style="font-family: 'Onest', 'Pretendard Variable', Pretendard, -apple-system, sans-serif"
   >
-    <!-- Flowstate WebGL 유체 배경 -->
-    <FluidBg :dimmed="activeTab !== 'chat' || messages.length > 0" />
+    <!-- 깔끔한 정적 다크 배경 (WebGL 연기 제거 → 초경량 60fps) -->
+    <div
+      class="pointer-events-none fixed inset-0 z-0"
+      style="background: radial-gradient(90% 55% at 50% 0%, rgba(56, 189, 248, 0.11), transparent 65%), #04050c"
+      aria-hidden="true"
+    />
+
+    <!-- 부서별 맞춤 핸드오프 바텀시트 -->
+    <MobileHandoffSheet :open="handoffOpen" :item="handoffItem" @close="handoffOpen = false" />
 
     <!-- 좌측 ChatGPT 스타일 스프링 사이드바 드로어 -->
     <MobileSidebar
@@ -662,14 +655,23 @@ onMounted(() => {
       </div>
 
       <main ref="scroller" class="relative z-10 flex-1 overflow-y-auto px-4 pb-4">
-        <!-- 대화 전: SmoothUI Siri Orb + Flowstate 히어로 -->
+        <!-- 대화 전: mobile.mp4 오브 영상 + Flowstate 히어로 -->
         <div v-if="!messages.length" class="mx-auto flex min-h-full max-w-md flex-col items-center justify-center py-5 text-center">
           <div
-            class="mb-4 transition-all duration-700"
+            class="mb-4 size-[124px] overflow-hidden rounded-full border border-white/15 bg-[#070a14] shadow-[0_0_38px_rgba(56,189,248,0.22)] transition-all duration-700"
             :class="revealed ? 'scale-100 opacity-100' : 'scale-90 opacity-0'"
             style="transition-delay: 120ms"
           >
-            <SiriOrb :size="108" :state="busy ? 'thinking' : 'idle'" />
+            <video
+              src="/mobile.mp4"
+              autoplay
+              loop
+              muted
+              playsinline
+              preload="auto"
+              class="size-full object-cover"
+              aria-hidden="true"
+            />
           </div>
 
           <p
@@ -847,14 +849,22 @@ onMounted(() => {
             <p class="mt-1.5 text-[12.5px] text-[#b9becf]">
               {{ r.reported_part_no || '-' }} · {{ r.minor_name || r.defect_type || '유형 미지정' }}
             </p>
-            <div class="mt-3 flex items-center justify-between">
-              <span class="text-[11px] text-[#b9becf]/65">{{ r.customer_name || '' }}</span>
-              <button
-                class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
-                @click="openChatFor('RMA', r.rma_id, r.rma_id)"
-              >
-                <Sparkles class="size-3" />AI 분석 채팅
-              </button>
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <span class="truncate text-[11px] text-[#b9becf]/65">{{ r.customer_name || '' }}</span>
+              <div class="flex shrink-0 items-center gap-1.5">
+                <button
+                  class="inline-flex items-center gap-1 rounded-full border border-white/16 bg-white/[0.07] px-2.5 py-1 text-[11.5px] font-medium text-[#eef0f6] transition active:scale-95"
+                  @click="openHandoff(r, 'rma')"
+                >
+                  <Share2 class="size-3" />부서 공유
+                </button>
+                <button
+                  class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
+                  @click="openChatFor('RMA', r.rma_id, r.rma_id)"
+                >
+                  <Sparkles class="size-3" />AI 분석
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1137,15 +1147,13 @@ onMounted(() => {
                 {{ reportDetailCache[r.rma_id]?.executive_summary || reportDetailCache[r.rma_id]?.summary || r.summary || '상세 요약을 불러오는 중…' }}
               </div>
 
-              <!-- 하단 액션: 타 부서 공유(네이티브 공유 시트/복사) + AI 질문 -->
+              <!-- 하단 액션: 타 부서 맞춤 핸드오프 + AI 질문 -->
               <div class="mt-3 flex items-center justify-end gap-2 border-t border-white/8 pt-2.5">
                 <button
                   class="inline-flex items-center gap-1 rounded-full border border-white/16 bg-white/[0.07] px-3 py-1 text-[11.5px] font-medium text-[#eef0f6] transition active:scale-95"
-                  @click.stop="shareReport(r, 'rma')"
+                  @click.stop="openHandoff(r, 'rma')"
                 >
-                  <Check v-if="sharedKey === r.rma_id" class="size-3 text-emerald-300" />
-                  <Share2 v-else class="size-3" />
-                  {{ sharedKey === r.rma_id ? '공유됨' : '부서 공유' }}
+                  <Share2 class="size-3" />부서 공유
                 </button>
                 <button
                   class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"
@@ -1180,11 +1188,9 @@ onMounted(() => {
               <div class="mt-3 flex items-center justify-end gap-2 border-t border-white/8 pt-2.5">
                 <button
                   class="inline-flex items-center gap-1 rounded-full border border-white/16 bg-white/[0.07] px-3 py-1 text-[11.5px] font-medium text-[#eef0f6] transition active:scale-95"
-                  @click="shareReport(p, 'pattern')"
+                  @click="openHandoff(p, 'pattern')"
                 >
-                  <Check v-if="sharedKey === `PAT-${p.report_id || p.pattern_id}`" class="size-3 text-emerald-300" />
-                  <Share2 v-else class="size-3" />
-                  {{ sharedKey === `PAT-${p.report_id || p.pattern_id}` ? '공유됨' : '부서 공유' }}
+                  <Share2 class="size-3" />부서 공유
                 </button>
                 <button
                   class="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11.5px] font-medium text-[#1c1d22] transition active:scale-95"

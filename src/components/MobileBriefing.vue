@@ -1,16 +1,18 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock, Repeat, Sparkles } from 'lucide-vue-next'
 import MotionStatCard from '@/components/motion/MotionStatCard.vue'
 import MotionPager from '@/components/motion/MotionPager.vue'
 import MarkerText from '@/components/motion/MarkerText.vue'
 import { api, fmtWon, referenceDate } from '@/lib/api'
+import { useMeta } from '@/lib/meta'
 
 const props = defineProps({
   isCs: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['open-chat', 'open-tab'])
+useMeta()
 
 const loading = ref(true)
 const slideIdx = ref(0)
@@ -74,7 +76,9 @@ const topPriority = computed(() => qa30.value?.priority?.[0] || null)
 const topRepeat = computed(() => qa30.value?.repeat_rank?.[0] || null)
 const oldestWaiting = computed(() => waitingOpen.value[0] || null)
 
+let loadSeq = 0
 async function loadBriefing() {
+  const seq = ++loadSeq
   loading.value = true
   const to = referenceDate.value || new Date().toISOString().slice(0, 10)
   const from30 = shiftDate(to, -29)
@@ -87,6 +91,7 @@ async function loadBriefing() {
         api('/dashboard/trend', { query: { from: from90, to } }).catch(() => null),
         api('/rmas', { query: { status: 'OPEN', sort: 'opened_at:asc', page: 1, size: 50 } }).catch(() => null),
       ])
+      if (seq !== loadSeq) return
       cs30.value = csRes
       trendPoints.value = trendRes?.points || []
       waitingOpen.value = openRes?.items || []
@@ -95,15 +100,16 @@ async function loadBriefing() {
         api('/dashboard/quality', { query: { from: from30, to } }).catch(() => null),
         api('/dashboard/trend', { query: { from: from90, to } }).catch(() => null),
       ])
+      if (seq !== loadSeq) return
       qa30.value = qaRes
       trendPoints.value = trendRes?.points || []
     }
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
-onMounted(loadBriefing)
+watch(referenceDate, () => loadBriefing(), { immediate: true })
 </script>
 
 <template>

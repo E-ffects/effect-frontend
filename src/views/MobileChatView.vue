@@ -20,17 +20,19 @@ import MobileBriefing from '@/components/MobileBriefing.vue'
 import MobileSidebar from '@/components/MobileSidebar.vue'
 import SiriOrb from '@/components/motion/SiriOrb.vue'
 import { api, fmtDate, timeAgo } from '@/lib/api'
+import { useMeta } from '@/lib/meta'
 import { auth, clearSession } from '@/lib/state'
 
 // 모바일 전용 Flowstate 다크 + ChatGPT 스타일 통합 뷰 (/m)
 const route = useRoute()
 const router = useRouter()
+useMeta()
 
 const isCs = computed(() => auth.user?.role === 'CS')
 const sidebarOpen = ref(false)
 const activeTab = ref('chat') // 'chat' | 'rmas' | 'patterns' | 'approvals' | 'alerts'
 
-const GENERAL_SCOPE = { key: 'GENERAL', type: 'GENERAL', id: null, label: '범용 AI', sub: '전체 지식·기준' }
+const GENERAL_SCOPE = { key: 'GENERAL', type: 'GENERAL', id: null, label: 'RMA 어시스턴스', sub: '전체 지식·기준' }
 
 // 스코프 목록 (상단 선택 칩) & 실제 채팅 이력이 있는 항목들 ("채팅 한 것만")
 const scopes = ref([]) // [{ key, type: 'RMA'|'PATTERN', id, label, sub }]
@@ -550,7 +552,7 @@ onMounted(() => {
           "
           @click="startNewGeneralChat"
         >
-          범용 AI
+          RMA 어시스턴스
         </button>
         <button
           v-for="sc in scopes"

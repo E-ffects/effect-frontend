@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ClipboardCheck,
   FileSearch,
+  FileText,
   Folder,
   Layers,
   LayoutDashboard,
@@ -47,6 +48,7 @@ const navItems = computed(() =>
         { id: 'patterns', label: '불량 패턴 분석', icon: Layers },
         { id: 'approvals', label: '원인 판정', icon: ClipboardCheck },
         { id: 'alerts', label: '알림 및 재발', icon: Bell },
+        { id: 'reports', label: 'AI 보고서', icon: FileText },
       ],
 )
 

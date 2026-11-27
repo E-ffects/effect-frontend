@@ -47,8 +47,8 @@ export function homePath(user = auth.user) {
 // AI 서비스 상태 (NFR-02-3) — 503 응답이나 health 체크로 갱신
 export const aiState = reactive({ available: true, provider: null })
 
-// 에이전트 패널의 분석 대상: RMA 목록에서 펼친 행 (FR-05-4)
-export const chatContext = reactive({ rmaId: null })
+// 에이전트 패널의 분석 대상: RMA 목록·케이스에서 연 RMA 또는 불량 패턴 화면에서 선택한 패턴
+export const chatContext = reactive({ rmaId: null, patternId: null, patternFrom: null, patternTo: null })
 
 // 오른쪽 에이전트 패널: 열림 여부는 기억하고, 대화(작업 결과)는 세션 동안 화면을 옮겨도 유지한다
 export const agentPanel = reactive({ open: load('rma.agentPanel') ?? true, thread: [], intake: null })

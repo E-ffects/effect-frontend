@@ -16,6 +16,20 @@ const route = useRoute()
 const router = useRouter()
 const isCs = computed(() => auth.user?.role === 'CS')
 const target = computed(() => chatContext.rmaId)
+const activeScope = computed(() => {
+  if (!isCs.value && route.path.startsWith('/quality/patterns') && chatContext.patternId) {
+    return {
+      type: 'PATTERN',
+      id: chatContext.patternId,
+      ...(chatContext.patternFrom ? { from: chatContext.patternFrom } : {}),
+      ...(chatContext.patternTo ? { to: chatContext.patternTo } : {}),
+    }
+  }
+  if (target.value) return { type: 'RMA', id: target.value }
+  return null
+})
+const activeScopeKey = computed(() => (activeScope.value ? `${activeScope.value.type}:${activeScope.value.id}` : ''))
+const currentThreadId = ref(null)
 const thread = computed(() => agentPanel.thread)
 const scroller = ref(null)
 const busy = ref(false)
@@ -91,28 +105,93 @@ async function refreshProgress(msg) {
   scroll()
 }
 
-// 자유 입력: 기존 /chat 을 그대로 쓴다 (다음 버전에서 위 작업을 호출하도록 바꿀 예정)
+// 범위(RMA 또는 불량 패턴)가 바뀌면 열린 이전 대화(GET /api/chat/threads)를 불러온다
+let threadSeq = 0
+watch(
+  [activeScopeKey, () => auth.token],
+  async ([key, token]) => {
+    const seq = ++threadSeq
+    currentThreadId.value = null
+    if (!key || !token || !activeScope.value) return
+    const { type, id } = activeScope.value
+    try {
+      const res = await api('/chat/threads', { query: { scope_type: type, scope_id: id } })
+      if (seq !== threadSeq) return
+      if (res?.thread_id) {
+        currentThreadId.value = res.thread_id
+        agentPanel.thread = (res.messages || []).map((m, idx) => ({
+          id: `${res.thread_id}-${idx}`,
+          role: m.role === 'user' ? 'user' : 'bot',
+          kind: 'chat',
+          text: m.text,
+          status: m.status,
+          evidence: Array.isArray(m.evidence) ? m.evidence : [],
+          suggestions: Array.isArray(m.suggestions) ? m.suggestions : [],
+          fresh: false,
+        }))
+        scroll()
+      } else {
+        agentPanel.thread = []
+      }
+    } catch {
+      /* 스레드 조회 실패 시 빈 대화로 계속 진행 */
+    }
+  },
+  { immediate: true },
+)
+
+// 자유 입력: Spring POST /api/chat (scope + thread_id) 연동
 const input = ref('')
 const inputEl = ref(null)
 
 // 빈 대화 화면의 RMA 구체를 누르면: 점이 RMA 글자로 모인 뒤 대화를 연다 (인사가 흐르고 입력칸에 커서)
 function startChat() {
   const name = auth.user?.name || '담당자'
-  const about = target.value ? `열려 있는 ${target.value}의 원인 후보, 비슷한 과거 사례, 처리 이력을 물어보세요.` : '왼쪽에서 RMA를 열면 그 사례를 기준으로 답합니다. 원인 후보, 비슷한 과거 사례, 처리 이력을 물어보세요.'
+  const sc = activeScope.value
+  const about = sc
+    ? sc.type === 'PATTERN'
+      ? `선택된 불량 패턴 ${sc.id}의 주요 원인, 영향 설비·Lot, 시정 조치를 물어보세요.`
+      : `열려 있는 ${sc.id}의 원인 후보, 비슷한 과거 사례, 처리 이력을 물어보세요.`
+    : '왼쪽에서 RMA를 열면 그 사례를 기준으로 답합니다. 원인 후보, 비슷한 과거 사례, 처리 이력을 물어보세요.'
   push({ role: 'bot', kind: 'text', text: `${name}님, 무엇을 도와드릴까요? ${about}` })
   nextTick(() => inputEl.value?.focus())
 }
+
+function handleSuggestion(s) {
+  if (s?.task === 'start_analysis' && target.value) {
+    router.push(`/rmas/${target.value}/case`)
+  }
+}
+
 async function send() {
   const text = input.value.trim()
   if (!text || busy.value) return
   input.value = ''
   push({ role: 'user', text })
+  if (!activeScope.value) {
+    push({
+      role: 'bot',
+      kind: 'text',
+      text: isCs.value
+        ? '먼저 왼쪽 RMA 목록에서 사례를 열어 주세요. 열려 있는 RMA를 기준으로 답변해 드립니다.'
+        : '먼저 왼쪽에서 RMA 사례나 불량 패턴을 선택해 주세요. 선택한 대상을 기준으로 답변해 드립니다.',
+    })
+    return
+  }
   const msg = push({ role: 'bot', kind: 'chat', loading: true })
   busy.value = true
   try {
-    const res = await api('/chat', { method: 'POST', body: { message: text, rma_id: target.value } })
+    const body = {
+      message: text,
+      scope: activeScope.value,
+      ...(currentThreadId.value ? { thread_id: currentThreadId.value } : {}),
+    }
+    const res = await api('/chat', { method: 'POST', body })
+    if (res?.thread_id) currentThreadId.value = res.thread_id
     msg.text = res.answer
+    msg.status = res.status
     msg.evidence = res.evidence || []
+    msg.suggestions = res.suggestions || []
   } catch (e) {
     msg.error = e.status === 503 ? 'AI 일시 불가' : e.status === 429 ? '잠시 후 다시 질문해 주세요' : e.message
   } finally {
@@ -247,7 +326,9 @@ onBeforeUnmount(() => {
     <!-- 분석 대상 -->
     <div :ref="(el) => (cascade[1] = el)" class="flex items-center gap-2 whitespace-nowrap border-b bg-muted/50 px-4 py-2 text-xs">
       <span class="text-muted-foreground">분석 대상</span>
-      <span v-if="target" class="tabular rounded-md border bg-card px-1.5 py-0.5 font-semibold">{{ target }}</span>
+      <span v-if="activeScope" class="tabular rounded-md border bg-card px-1.5 py-0.5 font-semibold">
+        {{ activeScope.type === 'PATTERN' ? `패턴 ${activeScope.id}` : activeScope.id }}
+      </span>
       <span v-else class="text-muted-foreground">RMA 조회에서 사례를 열면 지정됩니다</span>
       <span class="ml-auto rounded-[5px] bg-brand-soft px-1.5 py-0.5 font-semibold text-primary">{{ isCs ? 'CS 권한' : 'QA 권한' }}</span>
     </div>
@@ -299,12 +380,33 @@ onBeforeUnmount(() => {
             <!-- 일반 안내 / 자유 입력 답변 -->
             <template v-else-if="m.kind === 'text' || m.kind === 'chat'">
               <StreamBubble :text="m.text" :loading="m.loading" :streaming="m.fresh" @grow="scroll" @finished="m.fresh = false" />
+              <div v-if="m.suggestions?.length" class="flex flex-wrap gap-1.5">
+                <Button
+                  v-for="(s, idx) in m.suggestions"
+                  :key="idx"
+                  variant="outline"
+                  size="xs"
+                  @click="handleSuggestion(s)"
+                >
+                  <Sparkles class="size-3" />{{ s.label || s.task }}
+                </Button>
+              </div>
               <div v-if="m.evidence?.length" class="rounded-lg border p-2">
-                <p class="mb-1 text-[12px] font-medium text-muted-foreground">근거 RMA 및 조치 내역</p>
-                <button v-for="ev in m.evidence" :key="ev.rma_id" class="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-xs hover:bg-muted" @click="openRma(ev.rma_id)">
-                  <span class="font-medium underline underline-offset-2">{{ ev.rma_id }}</span>
-                  <span class="truncate text-muted-foreground">{{ ev.action }}</span>
-                </button>
+                <p class="mb-1 text-[12px] font-medium text-muted-foreground">근거 자료</p>
+                <template v-for="(ev, idx) in m.evidence" :key="ev.rma_id || `${ev.type}-${idx}`">
+                  <button
+                    v-if="ev.rma_id"
+                    class="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-xs hover:bg-muted"
+                    @click="openRma(ev.rma_id)"
+                  >
+                    <span class="shrink-0 font-medium text-primary underline underline-offset-2">{{ ev.rma_id }}</span>
+                    <span class="truncate text-muted-foreground">{{ ev.label || ev.action }}</span>
+                  </button>
+                  <div v-else class="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-xs">
+                    <span class="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10.5px] font-semibold text-[#4a505c]">기준 문서</span>
+                    <span class="truncate text-muted-foreground">{{ ev.label }}</span>
+                  </div>
+                </template>
               </div>
             </template>
 

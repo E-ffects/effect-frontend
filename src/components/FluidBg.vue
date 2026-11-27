@@ -1,29 +1,29 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 // Flowstate 스타일 WebGL 유체(Ink-in-Water) 배경
-// 모바일에서는 해상도를 자동 경량화(SIM 112 / DYE 256)해 부드러운 60fps를 유지하고,
-// 대화가 시작되면(dimmed=true) 스크림을 짙게 눌러 텍스트 가독성을 확보한다.
-defineProps({
+// 모바일 최적화: SIM 64 / DYE 128 / 30fps 캡, 대화·목록 화면(dimmed=true)에서는
+// WebGL 루프를 자동 일시 정지해 스크롤 시 GPU 점유율 0%를 유지한다.
+const props = defineProps({
   dimmed: { type: Boolean, default: false },
 })
 
 const canvasEl = ref(null)
 const webglFailed = ref(false)
-let destroyFn = null
+let controller = null
 
-function startFluidSimulation(canvas) {
+function startFluidSimulation(canvas, isPaused) {
   canvas.width = canvas.clientWidth || window.innerWidth
   canvas.height = canvas.clientHeight || window.innerHeight
 
   const mobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 768
   const config = {
-    SIM_RESOLUTION: mobile ? 112 : 200,
-    DYE_RESOLUTION: mobile ? 256 : 512,
+    SIM_RESOLUTION: mobile ? 64 : 160,
+    DYE_RESOLUTION: mobile ? 128 : 512,
     DENSITY_DISSIPATION: 0.958,
     VELOCITY_DISSIPATION: 0.96,
     PRESSURE_DISSIPATION: 0.8,
-    PRESSURE_ITERATIONS: mobile ? 14 : 20,
+    PRESSURE_ITERATIONS: mobile ? 6 : 16,
     CURL: 42,
     SPLAT_RADIUS: 0.22,
     SHADING: !mobile,
@@ -498,8 +498,18 @@ function startFluidSimulation(canvas) {
     blit(null)
   }
 
-  function update() {
+  let lastRender = 0
+  function update(now = performance.now()) {
     if (destroyed) return
+    if (document.hidden || isPaused()) {
+      rafId = 0
+      return
+    }
+    if (mobile && now - lastRender < 34) {
+      rafId = requestAnimationFrame(update)
+      return
+    }
+    lastRender = now
     if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
       if (canvas.clientWidth > 0 && canvas.clientHeight > 0) {
         canvas.width = canvas.clientWidth
@@ -516,9 +526,16 @@ function startFluidSimulation(canvas) {
       lastColorTime = Date.now()
       for (const p of pointers) p.color = generateColor()
     }
-    step(0.016)
+    step(mobile ? 0.024 : 0.016)
     render()
     rafId = requestAnimationFrame(update)
+  }
+
+  function resume() {
+    if (!destroyed && !rafId && !document.hidden && !isPaused()) {
+      lastRender = 0
+      rafId = requestAnimationFrame(update)
+    }
   }
 
   const teardown = []
@@ -549,25 +566,41 @@ function startFluidSimulation(canvas) {
     }
   }, { passive: true })
 
-  update()
-  return () => {
-    destroyed = true
-    if (rafId) cancelAnimationFrame(rafId)
-    for (const off of teardown) off()
+  on(document, 'visibilitychange', () => { if (!document.hidden) resume() })
+
+  // 첫 프레임은 항상 1회 그려 초기 잉크 배경을 보여준 뒤, dimmed 상태면 정지
+  step(0.016)
+  render()
+  if (!isPaused()) update()
+
+  return {
+    resume,
+    destroy() {
+      destroyed = true
+      if (rafId) cancelAnimationFrame(rafId)
+      for (const off of teardown) off()
+    },
   }
 }
 
+watch(
+  () => props.dimmed,
+  (dimmed) => {
+    if (!dimmed) controller?.resume()
+  },
+)
+
 onMounted(() => {
   try {
-    if (canvasEl.value) destroyFn = startFluidSimulation(canvasEl.value)
-    if (!destroyFn) webglFailed.value = true
+    if (canvasEl.value) controller = startFluidSimulation(canvasEl.value, () => props.dimmed)
+    if (!controller) webglFailed.value = true
   } catch {
     webglFailed.value = true
   }
 })
 
 onBeforeUnmount(() => {
-  destroyFn?.()
+  controller?.destroy()
 })
 </script>
 

@@ -74,6 +74,7 @@ function go(i, immediate = false) {
       B.x = B.t
     }
   }
+  wake()
 }
 
 watch(
@@ -105,6 +106,18 @@ function onTouchEnd(e) {
 
 let rafId = 0
 let last = 0
+let running = false
+
+function isSettled(s, eps = 0.01) {
+  return Math.abs(s.v) < eps && Math.abs(s.x - s.t) < eps
+}
+
+function wake() {
+  if (running) return
+  running = true
+  last = performance.now()
+  rafId = requestAnimationFrame(loop)
+}
 
 function loop(now) {
   const dt = Math.min((now - last) / 1000, 1 / 30)
@@ -130,15 +143,23 @@ function loop(now) {
     actEl.value.style.width = `${Math.max(8, B.x - A.x).toFixed(2)}px`
   }
 
+  if (ready && isSettled(P, 0.002) && isSettled(A, 0.1) && isSettled(B, 0.1)) {
+    running = false
+    rafId = 0
+    return
+  }
+
   rafId = requestAnimationFrame(loop)
 }
 
 onMounted(() => {
-  last = performance.now()
-  rafId = requestAnimationFrame(loop)
+  wake()
 })
 
-onBeforeUnmount(() => cancelAnimationFrame(rafId))
+onBeforeUnmount(() => {
+  cancelAnimationFrame(rafId)
+  running = false
+})
 
 function setDotRef(el, idx) {
   if (el) dotEls.value[idx] = el

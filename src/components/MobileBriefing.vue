@@ -1,16 +1,18 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock, Repeat, Sparkles } from 'lucide-vue-next'
 import MotionStatCard from '@/components/motion/MotionStatCard.vue'
 import MotionPager from '@/components/motion/MotionPager.vue'
 import MarkerText from '@/components/motion/MarkerText.vue'
 import { api, fmtWon, referenceDate } from '@/lib/api'
+import { useMeta } from '@/lib/meta'
 
 const props = defineProps({
   isCs: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['open-chat', 'open-tab'])
+useMeta()
 
 const loading = ref(true)
 const slideIdx = ref(0)
@@ -74,7 +76,9 @@ const topPriority = computed(() => qa30.value?.priority?.[0] || null)
 const topRepeat = computed(() => qa30.value?.repeat_rank?.[0] || null)
 const oldestWaiting = computed(() => waitingOpen.value[0] || null)
 
+let loadSeq = 0
 async function loadBriefing() {
+  const seq = ++loadSeq
   loading.value = true
   const to = referenceDate.value || new Date().toISOString().slice(0, 10)
   const from30 = shiftDate(to, -29)
@@ -87,6 +91,7 @@ async function loadBriefing() {
         api('/dashboard/trend', { query: { from: from90, to } }).catch(() => null),
         api('/rmas', { query: { status: 'OPEN', sort: 'opened_at:asc', page: 1, size: 50 } }).catch(() => null),
       ])
+      if (seq !== loadSeq) return
       cs30.value = csRes
       trendPoints.value = trendRes?.points || []
       waitingOpen.value = openRes?.items || []
@@ -95,21 +100,22 @@ async function loadBriefing() {
         api('/dashboard/quality', { query: { from: from30, to } }).catch(() => null),
         api('/dashboard/trend', { query: { from: from90, to } }).catch(() => null),
       ])
+      if (seq !== loadSeq) return
       qa30.value = qaRes
       trendPoints.value = trendRes?.points || []
     }
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
-onMounted(loadBriefing)
+watch(referenceDate, () => loadBriefing(), { immediate: true })
 </script>
 
 <template>
   <div class="mx-auto max-w-xl space-y-4 pb-6">
     <!-- 1. 오늘의 브리핑 요약 카드 (MarkerText 강조) -->
-    <section class="rounded-[24px] border border-white/12 bg-[#0b0f1f]/82 p-4 shadow-[0_14px_40px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+    <section class="rounded-[24px] border border-white/12 bg-[#0b0f1f]/94 p-4 shadow-[0_14px_40px_rgba(0,0,0,0.4)]">
       <div class="flex items-center gap-2 text-[11.5px] font-medium text-cyan-300">
         <Sparkles class="size-3.5" />
         <span>오늘의 {{ isCs ? 'CS' : '품질' }} 브리핑</span>
@@ -174,7 +180,7 @@ onMounted(loadBriefing)
         <template v-if="!isCs">
           <!-- 슬라이드 1: 조치 우선순위 1위 -->
           <div class="w-full shrink-0 pr-0.5">
-            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#161229]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4 backdrop-blur-xl">
+            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#161229]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4">
               <div>
                 <div class="flex items-center justify-between">
                   <span class="inline-flex items-center gap-1.5 rounded-full border border-rose-400/35 bg-rose-500/15 px-2.5 py-0.5 text-[11px] font-medium text-rose-200">
@@ -207,7 +213,7 @@ onMounted(loadBriefing)
 
           <!-- 슬라이드 2: 최다 반복 불량 -->
           <div class="w-full shrink-0 px-0.5">
-            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#101c33]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4 backdrop-blur-xl">
+            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#101c33]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4">
               <div>
                 <div class="flex items-center justify-between">
                   <span class="inline-flex items-center gap-1.5 rounded-full border border-violet-400/35 bg-violet-500/15 px-2.5 py-0.5 text-[11px] font-medium text-violet-200">
@@ -236,7 +242,7 @@ onMounted(loadBriefing)
 
           <!-- 슬라이드 3: 품질 성과 KPI -->
           <div class="w-full shrink-0 pl-0.5">
-            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#0e2029]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4 backdrop-blur-xl">
+            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#0e2029]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4">
               <span class="inline-flex w-fit items-center gap-1.5 rounded-full border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-medium text-cyan-200">
                 <CheckCircle2 class="size-3" />품질 성과 KPI
               </span>
@@ -270,7 +276,7 @@ onMounted(loadBriefing)
         <template v-else>
           <!-- 슬라이드 1: 가장 오래 대기 중인 고객사 -->
           <div class="w-full shrink-0 pr-0.5">
-            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#231518]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4 backdrop-blur-xl">
+            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#231518]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4">
               <div>
                 <div class="flex items-center justify-between">
                   <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-400/35 bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-medium text-amber-200">
@@ -301,7 +307,7 @@ onMounted(loadBriefing)
 
           <!-- 슬라이드 2: CS 성과 KPI -->
           <div class="w-full shrink-0 px-0.5">
-            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#0e2029]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4 backdrop-blur-xl">
+            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#0e2029]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4">
               <span class="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-medium text-emerald-200">
                 <CheckCircle2 class="size-3" />CS 성과 KPI
               </span>
@@ -325,7 +331,7 @@ onMounted(loadBriefing)
 
           <!-- 슬라이드 3: 처리 현황 요약 -->
           <div class="w-full shrink-0 pl-0.5">
-            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#141730]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4 backdrop-blur-xl">
+            <div class="flex min-h-[196px] flex-col justify-between rounded-[24px] border border-white/12 bg-gradient-to-br from-[#141730]/90 via-[#0d1022]/90 to-[#0a0d1a]/95 p-4">
               <span class="inline-flex w-fit items-center gap-1.5 rounded-full border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-medium text-cyan-200">
                 최근 30일 처리 현황
               </span>

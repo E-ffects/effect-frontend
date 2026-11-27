@@ -20,17 +20,19 @@ import MobileBriefing from '@/components/MobileBriefing.vue'
 import MobileSidebar from '@/components/MobileSidebar.vue'
 import SiriOrb from '@/components/motion/SiriOrb.vue'
 import { api, fmtDate, timeAgo } from '@/lib/api'
+import { useMeta } from '@/lib/meta'
 import { auth, clearSession } from '@/lib/state'
 
 // 모바일 전용 Flowstate 다크 + ChatGPT 스타일 통합 뷰 (/m)
 const route = useRoute()
 const router = useRouter()
+useMeta()
 
 const isCs = computed(() => auth.user?.role === 'CS')
 const sidebarOpen = ref(false)
 const activeTab = ref('chat') // 'chat' | 'rmas' | 'patterns' | 'approvals' | 'alerts'
 
-const GENERAL_SCOPE = { key: 'GENERAL', type: 'GENERAL', id: null, label: '범용 AI', sub: '전체 지식·기준' }
+const GENERAL_SCOPE = { key: 'GENERAL', type: 'GENERAL', id: null, label: 'RMA 어시스턴스', sub: '전체 지식·기준' }
 
 // 스코프 목록 (상단 선택 칩) & 실제 채팅 이력이 있는 항목들 ("채팅 한 것만")
 const scopes = ref([]) // [{ key, type: 'RMA'|'PATTERN', id, label, sub }]
@@ -146,7 +148,7 @@ function storageKey() {
   return `rma.mobile.threads.${auth.user?.id || auth.user?.email || 'anon'}`
 }
 
-function loadSavedThreadKeys() {
+function loadSavedThreads() {
   try {
     const raw = JSON.parse(localStorage.getItem(storageKey()) || '[]')
     return Array.isArray(raw) ? raw : []
@@ -155,15 +157,12 @@ function loadSavedThreadKeys() {
   }
 }
 
-function persistThreadKey(type, id, label) {
-  if (type === 'GENERAL') return
+function saveThreadEntry(entry) {
+  if (!entry || entry.type === 'GENERAL') return
   try {
-    const list = loadSavedThreadKeys()
-    const key = scopeKey(type, id)
-    if (!list.some((x) => x.key === key)) {
-      list.unshift({ key, type, id, label })
-      localStorage.setItem(storageKey(), JSON.stringify(list.slice(0, 30)))
-    }
+    const list = loadSavedThreads().filter((x) => x.key !== entry.key)
+    list.unshift(entry)
+    localStorage.setItem(storageKey(), JSON.stringify(list.slice(0, 30)))
   } catch {
     /* ignore */
   }
@@ -174,18 +173,31 @@ function registerActiveThread(sc, msgs) {
   const lastMsg = msgs[msgs.length - 1]
   const preview = (lastMsg?.text || '').replace(/\s+/g, ' ').slice(0, 42)
   const key = scopeKey(sc.type, sc.id)
+  const entry = {
+    key,
+    type: sc.type,
+    id: sc.id,
+    label: sc.label,
+    preview,
+    count: msgs.length,
+  }
   threadMap.value = {
     ...threadMap.value,
-    [key]: {
-      key,
-      type: sc.type,
-      id: sc.id,
-      label: sc.label,
-      preview,
-      count: msgs.length,
-    },
+    [key]: entry,
   }
-  persistThreadKey(sc.type, sc.id, sc.label)
+  saveThreadEntry(entry)
+}
+
+function hydrateSavedThreads() {
+  const saved = loadSavedThreads()
+  const next = {}
+  for (const s of saved) {
+    if (isCs.value && s.type !== 'RMA') continue
+    if (s.key && s.id) {
+      next[s.key] = { ...s, count: s.count || 1 }
+    }
+  }
+  threadMap.value = next
 }
 
 function scrollBottom() {
@@ -194,59 +206,9 @@ function scrollBottom() {
   })
 }
 
-async function probeActiveThreads(candidates) {
-  const map = new Map()
-  for (const s of loadSavedThreadKeys()) map.set(s.key, s)
-  for (const c of candidates) map.set(c.key, c)
-
-  const targets = [...map.values()].filter((c) => !isCs.value || c.type === 'RMA')
-  await Promise.allSettled(
-    targets.map(async (c) => {
-      try {
-        const res = await api('/chat/threads', { query: { scope_type: c.type, scope_id: c.id } })
-        if (res?.messages?.length) {
-          registerActiveThread(c, res.messages)
-        }
-      } catch {
-        /* ignore */
-      }
-    }),
-  )
-}
-
 async function loadScopes() {
-  const list = []
-  try {
-    const rmaRes = await api('/rmas', { query: { size: 8 } })
-    for (const r of rmaRes?.items || []) {
-      list.push({
-        key: scopeKey('RMA', r.rma_id),
-        type: 'RMA',
-        id: r.rma_id,
-        label: r.rma_id,
-        sub: r.reported_part_no || r.defect_type || '',
-      })
-    }
-  } catch {
-    /* ignore */
-  }
-  if (!isCs.value) {
-    try {
-      const patRes = await api('/patterns')
-      for (const p of (patRes?.patterns || []).slice(0, 5)) {
-        list.push({
-          key: scopeKey('PATTERN', p.pattern_id),
-          type: 'PATTERN',
-          id: p.pattern_id,
-          label: `패턴 ${p.pattern_id}`,
-          sub: p.defect_type || p.product || '',
-        })
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  scopes.value = list
+  // 초기 로딩 지연 방지: 저장된 채팅 이력은 즉시 복원하고, API는 1~2건만 병렬 조회
+  hydrateSavedThreads()
 
   const qRma = route.query.rmaId ? String(route.query.rmaId) : null
   const qPat = route.query.patternId ? String(route.query.patternId) : null
@@ -258,7 +220,31 @@ async function loadScopes() {
     startNewGeneralChat()
   }
 
-  probeActiveThreads(list)
+  const [rmaRes, patRes] = await Promise.all([
+    api('/rmas', { query: { size: 6 } }).catch(() => null),
+    isCs.value ? Promise.resolve(null) : api('/patterns').catch(() => null),
+  ])
+
+  const list = []
+  for (const r of rmaRes?.items || []) {
+    list.push({
+      key: scopeKey('RMA', r.rma_id),
+      type: 'RMA',
+      id: r.rma_id,
+      label: r.rma_id,
+      sub: r.reported_part_no || r.defect_type || '',
+    })
+  }
+  for (const p of (patRes?.patterns || []).slice(0, 4)) {
+    list.push({
+      key: scopeKey('PATTERN', p.pattern_id),
+      type: 'PATTERN',
+      id: p.pattern_id,
+      label: `패턴 ${p.pattern_id}`,
+      sub: p.defect_type || p.product || '',
+    })
+  }
+  scopes.value = list
 }
 
 function startNewGeneralChat() {
@@ -530,7 +516,7 @@ onMounted(() => {
     >
       <div class="flex items-center gap-2.5">
         <button
-          class="grid size-9 place-items-center rounded-full border border-white/16 bg-white/[0.08] text-[#eef0f6] backdrop-blur-md transition active:scale-95 hover:bg-white/[0.15]"
+          class="grid size-9 place-items-center rounded-full border border-white/16 bg-white/[0.08] text-[#eef0f6] transition active:scale-95 hover:bg-white/[0.15]"
           aria-label="메뉴 열기"
           @click="sidebarOpen = true"
         >
@@ -539,7 +525,7 @@ onMounted(() => {
 
         <div class="flex items-center gap-2">
           <span class="text-[16px] font-medium tracking-[-0.01em] text-white">{{ tabTitle }}</span>
-          <span class="rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10.5px] font-medium text-[#b9becf] backdrop-blur-md">
+          <span class="rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10.5px] font-medium text-[#b9becf]">
             {{ isCs ? 'CS' : 'QA' }}
           </span>
         </div>
@@ -547,7 +533,7 @@ onMounted(() => {
 
       <span
         v-if="activeTab === 'chat' && activeScope"
-        class="max-w-[140px] truncate rounded-full border border-white/14 bg-white/[0.07] px-2.5 py-1 text-[11px] font-medium text-[#b9becf] backdrop-blur-md"
+        class="max-w-[140px] truncate rounded-full border border-white/14 bg-white/[0.07] px-2.5 py-1 text-[11px] font-medium text-[#b9becf]"
       >
         {{ activeScope.label }}
       </span>
@@ -558,7 +544,7 @@ onMounted(() => {
       <!-- 범용 + RMA / 불량 패턴 선택 바 -->
       <div class="relative z-20 flex shrink-0 items-center gap-1.5 overflow-x-auto px-4 pb-2.5 [scrollbar-width:none]">
         <button
-          class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur-md transition"
+          class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition"
           :class="
             activeScope?.type === 'GENERAL'
               ? 'border-white/80 bg-white text-[#1c1d22] shadow-sm'
@@ -566,12 +552,12 @@ onMounted(() => {
           "
           @click="startNewGeneralChat"
         >
-          범용 AI
+          RMA 어시스턴스
         </button>
         <button
           v-for="sc in scopes"
           :key="sc.key"
-          class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur-md transition"
+          class="shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition"
           :class="
             activeScope?.key === sc.key
               ? 'border-white/80 bg-white text-[#1c1d22] shadow-sm'
@@ -595,7 +581,7 @@ onMounted(() => {
           </div>
 
           <p
-            class="inline-flex items-center gap-1.5 rounded-full border border-white/16 bg-white/8 px-3.5 py-1 text-[11.5px] text-[#b9becf] backdrop-blur-md transition-all duration-700"
+            class="inline-flex items-center gap-1.5 rounded-full border border-white/16 bg-white/8 px-3.5 py-1 text-[11.5px] text-[#b9becf] transition-all duration-700"
             :class="revealed ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'"
             style="transition-delay: 220ms"
           >
@@ -632,7 +618,7 @@ onMounted(() => {
             <button
               v-for="qp in quickPrompts"
               :key="qp.label"
-              class="flex items-center justify-between rounded-2xl border border-white/14 bg-white/[0.07] px-4 py-3 text-left text-[13px] text-[#eef0f6] backdrop-blur-md transition active:scale-[0.99] hover:border-white/25 hover:bg-white/[0.12]"
+              class="flex items-center justify-between rounded-2xl border border-white/14 bg-white/[0.07] px-4 py-3 text-left text-[13px] text-[#eef0f6] transition active:scale-[0.99] hover:border-white/25 hover:bg-white/[0.12]"
               @click="sendText(qp.text)"
             >
               <span class="font-medium">{{ qp.label }}</span>
@@ -651,13 +637,13 @@ onMounted(() => {
             </div>
 
             <div v-else class="flex items-start gap-2.5">
-              <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full border border-white/20 bg-white/10 text-cyan-200 backdrop-blur-md">
+              <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full border border-white/20 bg-white/10 text-cyan-200">
                 <Bot class="size-4" />
               </span>
               <div class="min-w-0 flex-1 space-y-2">
                 <div
                   v-if="m.loading"
-                  class="inline-flex items-center gap-1.5 rounded-[18px] border border-white/14 bg-[#0b0e1c]/80 px-4 py-3 text-xs text-[#b9becf] backdrop-blur-md"
+                  class="inline-flex items-center gap-1.5 rounded-[18px] border border-white/14 bg-[#0b0e1c]/80 px-4 py-3 text-xs text-[#b9becf]"
                 >
                   <span class="size-1.5 animate-pulse rounded-full bg-cyan-300" />
                   <span class="size-1.5 animate-pulse rounded-full bg-violet-300 [animation-delay:150ms]" />
@@ -667,13 +653,13 @@ onMounted(() => {
 
                 <div
                   v-else-if="m.error"
-                  class="rounded-2xl border border-red-400/30 bg-red-950/60 px-4 py-2.5 text-[13.5px] text-red-200 backdrop-blur-md"
+                  class="rounded-2xl border border-red-400/30 bg-red-950/60 px-4 py-2.5 text-[13.5px] text-red-200"
                 >
                   {{ m.error }}
                 </div>
 
                 <template v-else>
-                  <div class="rounded-[20px] rounded-tl-md border border-white/14 bg-[#0d1020]/78 px-4 py-3 text-[14px] leading-[1.65] text-[#eef0f6] backdrop-blur-md">
+                  <div class="rounded-[20px] rounded-tl-md border border-white/14 bg-[#0d1020]/78 px-4 py-3 text-[14px] leading-[1.65] text-[#eef0f6]">
                     {{ m.text }}
                   </div>
 
@@ -681,7 +667,7 @@ onMounted(() => {
                     <template v-for="(ev, idx) in m.evidence" :key="ev.rma_id || `${ev.type}-${idx}`">
                       <button
                         v-if="ev.rma_id"
-                        class="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2.5 py-1 text-[11.5px] text-cyan-100 backdrop-blur-md transition hover:bg-cyan-400/20"
+                        class="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2.5 py-1 text-[11.5px] text-cyan-100 transition hover:bg-cyan-400/20"
                         @click="openChatFor('RMA', ev.rma_id, ev.rma_id)"
                       >
                         <b class="font-semibold">{{ ev.rma_id }}</b>
@@ -689,7 +675,7 @@ onMounted(() => {
                       </button>
                       <span
                         v-else
-                        class="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-[11.5px] text-[#b9becf] backdrop-blur-md"
+                        class="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-[11.5px] text-[#b9becf]"
                       >
                         <b class="text-white/90">기준</b>
                         <span class="max-w-[180px] truncate">{{ ev.label }}</span>
@@ -706,7 +692,7 @@ onMounted(() => {
       <!-- 하단 입력 바 -->
       <footer class="relative z-20 shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
         <form
-          class="mx-auto flex h-[54px] max-w-xl items-center rounded-full border border-white/18 bg-white/[0.09] pl-4 pr-1.5 shadow-lg backdrop-blur-xl"
+          class="mx-auto flex h-[54px] max-w-xl items-center rounded-full border border-white/18 bg-[#111527]/95 pl-4 pr-1.5 shadow-lg"
           @submit.prevent="submit"
         >
           <input
@@ -740,7 +726,7 @@ onMounted(() => {
     <!-- ===================== 2. 모바일 RMA 조회 탭 ===================== -->
     <main v-else-if="activeTab === 'rmas'" class="relative z-10 flex-1 overflow-y-auto px-4 pb-6">
       <div class="mx-auto max-w-xl space-y-3">
-        <form class="flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3.5 backdrop-blur-md" @submit.prevent="loadRmas">
+        <form class="flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3.5" @submit.prevent="loadRmas">
           <Search class="size-4 shrink-0 text-[#b9becf]" />
           <input
             v-model="rmaQuery"
@@ -755,7 +741,7 @@ onMounted(() => {
           <div
             v-for="r in rmaList"
             :key="r.rma_id"
-            class="rounded-2xl border border-white/12 bg-[#0b0f1f]/78 p-3.5 backdrop-blur-md"
+            class="rounded-2xl border border-white/12 bg-[#0b0f1f]/78 p-3.5"
           >
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">
@@ -786,7 +772,7 @@ onMounted(() => {
     <!-- ===================== 3. 모바일 불량 패턴 탭 (검색창 포함) ===================== -->
     <main v-else-if="activeTab === 'patterns'" class="relative z-10 flex-1 overflow-y-auto px-4 pb-6">
       <div class="mx-auto max-w-xl space-y-3">
-        <div class="flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3.5 backdrop-blur-md">
+        <div class="flex h-11 items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3.5">
           <Search class="size-4 shrink-0 text-[#b9becf]" />
           <input
             v-model="patternQuery"
@@ -806,7 +792,7 @@ onMounted(() => {
           <div
             v-for="p in filteredPatterns"
             :key="p.pattern_id"
-            class="rounded-2xl border border-white/12 bg-[#0b0f1f]/78 p-3.5 backdrop-blur-md"
+            class="rounded-2xl border border-white/12 bg-[#0b0f1f]/78 p-3.5"
           >
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">
@@ -841,7 +827,7 @@ onMounted(() => {
         <div
           v-for="a in approvalList"
           :key="a.rma_id || a.id"
-          class="rounded-2xl border border-white/12 bg-[#0b0f1f]/78 p-3.5 backdrop-blur-md"
+          class="rounded-2xl border border-white/12 bg-[#0b0f1f]/78 p-3.5"
         >
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2">
@@ -871,7 +857,7 @@ onMounted(() => {
     <main v-else-if="activeTab === 'alerts'" class="relative z-10 flex-1 overflow-y-auto px-4 pb-6">
       <div class="mx-auto max-w-xl space-y-3">
         <!-- 서브탭: 알림 센터 | 재발·대책 -->
-        <div class="grid grid-cols-2 gap-1.5 rounded-full border border-white/14 bg-white/[0.06] p-1 backdrop-blur-md">
+        <div class="grid grid-cols-2 gap-1.5 rounded-full border border-white/14 bg-white/[0.06] p-1">
           <button
             class="rounded-full py-1.5 text-xs font-medium transition"
             :class="alertSubTab === 'alerts' ? 'bg-white text-[#1c1d22]' : 'text-[#b9becf] hover:text-white'"
@@ -896,7 +882,7 @@ onMounted(() => {
             <div
               v-for="al in alertList"
               :key="al.id"
-              class="cursor-pointer rounded-2xl border bg-[#0b0f1f]/82 p-3.5 backdrop-blur-md transition active:scale-[0.995]"
+              class="cursor-pointer rounded-2xl border bg-[#0b0f1f]/82 p-3.5 transition active:scale-[0.995]"
               :class="expandedAlertId === al.id ? 'border-cyan-300/40' : 'border-white/12'"
               @click="onAlertClick(al)"
             >
@@ -959,7 +945,7 @@ onMounted(() => {
             <div
               v-for="ac in actionList"
               :key="ac.corrective_action_id"
-              class="rounded-2xl border bg-[#0b0f1f]/82 p-3.5 backdrop-blur-md"
+              class="rounded-2xl border bg-[#0b0f1f]/82 p-3.5"
               :class="highlightedActionId === ac.corrective_action_id ? 'border-cyan-300/50' : 'border-white/12'"
             >
               <div class="flex items-center justify-between gap-2">

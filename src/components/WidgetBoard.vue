@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 import { toast } from '@/lib/state'
 
 // 대시보드 위젯 편집: 이동(⠿) · 크기(1/4 → 1/2 → 전체폭 순환) · 숨김(✕) · 추가(+), 사용자별 저장
-const props = defineProps({ dashboard: String, titles: Object })
+const props = defineProps({ dashboard: String, titles: Object, defaultLayout: { type: Array, default: null } })
 const editing = defineModel('editing', { type: Boolean, default: false })
 
 const layout = ref([])
@@ -15,6 +15,10 @@ let snapshot = []
 const dragId = ref(null)
 const saving = ref(false)
 const addOpen = ref(false)
+const localMode = ref(false)
+
+const localKey = () => `rma.widgetLayout.${props.dashboard}`
+const clone = (v) => JSON.parse(JSON.stringify(v || []))
 
 const visible = computed(() => layout.value.filter((w) => !w.hidden))
 // 4열 격자: 1/4폭은 넓은 화면에서만 한 칸, 좁아지면 반·전체로 늘어난다
@@ -24,13 +28,25 @@ const SIZE_LABEL = { quarter: '1/4폭', half: '1/2폭', full: '전체폭' }
 const hidden = computed(() => layout.value.filter((w) => w.hidden))
 
 onMounted(async () => {
+  if (props.defaultLayout) {
+    // 백엔드 레이아웃 API가 없는 대시보드(CS 등)는 localStorage로 즉시 로드/저장
+    defaults.value = clone(props.defaultLayout)
+    localMode.value = true
+    try {
+      const saved = JSON.parse(localStorage.getItem(localKey()) || 'null')
+      layout.value = Array.isArray(saved) && saved.length ? saved : clone(props.defaultLayout)
+    } catch {
+      layout.value = clone(props.defaultLayout)
+    }
+    return
+  }
   const res = await api(`/dashboard/layout/${props.dashboard}`)
   layout.value = res.layout
   defaults.value = res.default
 })
 
 watch(editing, (v) => {
-  if (v) snapshot = JSON.parse(JSON.stringify(layout.value))
+  if (v) snapshot = clone(layout.value)
 })
 
 function onDrop(targetId) {
@@ -48,13 +64,17 @@ function cancel() {
 }
 
 function reset() {
-  layout.value = JSON.parse(JSON.stringify(defaults.value))
+  layout.value = clone(defaults.value)
 }
 
 async function save() {
   saving.value = true
   try {
-    await api(`/dashboard/layout/${props.dashboard}`, { method: 'PUT', body: { layout: layout.value } })
+    if (localMode.value) {
+      localStorage.setItem(localKey(), JSON.stringify(layout.value))
+    } else {
+      await api(`/dashboard/layout/${props.dashboard}`, { method: 'PUT', body: { layout: layout.value } })
+    }
     editing.value = false
     toast({ title: '위젯 배치를 저장했습니다', tone: 'green' })
   } catch {
